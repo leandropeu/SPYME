@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<StreamingChannel version="1.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<id>202</id>
+<channelName>202</channelName>
+<enabled>true</enabled>
+<Transport>
+<ControlProtocolList>
+<ControlProtocol>
+<streamingTransport>RTSP</streamingTransport>
+</ControlProtocol>
+</ControlProtocolList>
+</Transport>
+<Video>
+<enabled>true</enabled>
+<videoInputChannelID>2</videoInputChannelID>
+<videoCodecType>H.265</videoCodecType>
+<videoResolutionWidth>352</videoResolutionWidth>
+<videoResolutionHeight>288</videoResolutionHeight>
+<videoQualityControlType>VBR</videoQualityControlType>
+<fixedQuality>60</fixedQuality>
+<vbrUpperCap>256</vbrUpperCap>
+<vbrLowerCap>32</vbrLowerCap>
+<maxFrameRate>1000</maxFrameRate>
+<snapShotImageType>JPEG</snapShotImageType>
+<SmartCodec>
+<enabled>false</enabled>
+</SmartCodec>
+<vbrAverageCap>244</vbrAverageCap>
+</Video>
+<Audio>
+<enabled>true</enabled>
+<audioInputChannelID>2</audioInputChannelID>
+<audioCompressionType>G.711ulaw</audioCompressionType>
+</Audio>
+</StreamingChannel>

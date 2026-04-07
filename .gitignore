@@ -1,0 +1,56 @@
+# --- Ambientes Virtuais (Python) ---
+venv/
+.venv/
+env/
+bin/
+lib/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.installed.cfg
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# --- Node.js ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+dist/
+build/
+node_modules/
+
+# --- Configurações de IDE (VS Code, JetBrains) ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# --- Arquivos Sensíveis (Segurança) ---
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+auth.json
+
+# --- Logs e Temporários ---
+*.log
+logs/
+*.tmp
+*.temp
+.cache/
+.eslintcache
+
+# --- Sistema Operacional ---
+.DS_Store
+Thumbs.db
+desktop.ini

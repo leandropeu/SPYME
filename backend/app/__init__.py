@@ -1,0 +1,1 @@
+"""SPYGYM backend package."""
