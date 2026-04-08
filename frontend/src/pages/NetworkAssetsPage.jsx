@@ -1,7 +1,8 @@
-import { Copy, GitBranch, Globe, Monitor, Pencil, Plus, Radar, Search, ShieldCheck, Trash2 } from 'lucide-react'
+import { Copy, Eye, GitBranch, Globe, Monitor, Pencil, Plus, Radar, Search, ShieldCheck, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
 import EntityModal from '../components/EntityModal'
+import Modal from '../components/Modal'
 import StatusBadge from '../components/StatusBadge'
 import Topbar from '../components/Topbar'
 import ViewToggle from '../components/ViewToggle'
@@ -88,6 +89,8 @@ export default function NetworkAssetsPage({ refreshToken, connected, currentUser
   const [notice, setNotice] = useState('')
   const [busyAction, setBusyAction] = useState('')
   const [discoveryResult, setDiscoveryResult] = useState(null)
+  const [webConsoleAsset, setWebConsoleAsset] = useState(null)
+  const [webConsoleInfo, setWebConsoleInfo] = useState({ loading: false, error: '', webInfo: null })
   const allowManage = canManage(currentUser)
 
   const fields = useMemo(() => {
@@ -217,6 +220,22 @@ export default function NetworkAssetsPage({ refreshToken, connected, currentUser
     } catch {
       setError('Nao foi possivel copiar o destino.')
     }
+  }
+
+  const openWebConsole = async (asset) => {
+    setWebConsoleAsset(asset)
+    setWebConsoleInfo({ loading: true, error: '', webInfo: null })
+    try {
+      const webInfo = await api.getNetworkAssetWebUrl(asset.id)
+      setWebConsoleInfo({ loading: false, error: '', webInfo })
+    } catch (err) {
+      setWebConsoleInfo({ loading: false, error: err.message, webInfo: null })
+    }
+  }
+
+  const closeWebConsole = () => {
+    setWebConsoleAsset(null)
+    setWebConsoleInfo({ loading: false, error: '', webInfo: null })
   }
 
   const runCheck = async (asset) => {
@@ -403,6 +422,12 @@ export default function NetworkAssetsPage({ refreshToken, connected, currentUser
                 {asset.connection_target ? <div className="stream-box">{asset.connection_target}</div> : null}
               </div>
               <div className="entity-card-actions wrap">
+                {['http', 'https'].includes(asset.protocol) ? (
+                  <button type="button" className="button primary" onClick={() => openWebConsole(asset)}>
+                    <Eye size={16} />
+                    Abrir painel
+                  </button>
+                ) : null}
                 {asset.connection_target ? (
                   <button type="button" className="button ghost" onClick={() => copyTarget(asset.connection_target)}>
                     <Copy size={16} />
@@ -456,6 +481,7 @@ export default function NetworkAssetsPage({ refreshToken, connected, currentUser
                   <td>{asset.parent_asset_name || 'Raiz'}</td>
                   <td>{formatDate(asset.last_checked)}</td>
                   <td className="actions-cell">
+                    {['http', 'https'].includes(asset.protocol) ? <button type="button" className="button primary" onClick={() => openWebConsole(asset)}>Abrir</button> : null}
                     {asset.connection_target ? <button type="button" className="button ghost" onClick={() => copyTarget(asset.connection_target)}>Copiar</button> : null}
                     {allowManage ? (
                       <>
@@ -482,6 +508,44 @@ export default function NetworkAssetsPage({ refreshToken, connected, currentUser
           onSubmit={save}
         />
       ) : null}
+
+      <Modal
+        open={Boolean(webConsoleAsset)}
+        title={webConsoleAsset ? `Painel web • ${webConsoleAsset.name}` : 'Painel web'}
+        onClose={closeWebConsole}
+        className={`wide-modal ${getStatusSurfaceClass(webConsoleAsset?.status)}`.trim()}
+      >
+        {webConsoleInfo.error ? <div className="alert-banner error">{webConsoleInfo.error}</div> : null}
+
+        <div className="entity-card-actions wrap compact-actions">
+          {webConsoleInfo.webInfo ? (
+            <a className="button ghost" href={webConsoleInfo.webInfo.url} target="_blank" rel="noreferrer">
+              <Eye size={16} />
+              Abrir direto
+            </a>
+          ) : null}
+          {webConsoleAsset?.connection_target ? (
+            <button type="button" className="button ghost" onClick={() => copyTarget(webConsoleAsset.connection_target)}>
+              <Copy size={16} />
+              Copiar destino tecnico
+            </button>
+          ) : null}
+        </div>
+
+        <div className="stream-shell">
+          {webConsoleInfo.loading ? (
+            <div className="empty-state">Abrindo interface web do equipamento...</div>
+          ) : webConsoleInfo.webInfo ? (
+            <iframe
+              title={`Painel ${webConsoleAsset?.name || 'ativo'}`}
+              src={api.networkAssetProxyUrl(webConsoleAsset.id, webConsoleAsset.path || '/')}
+              className="stream-frame"
+            />
+          ) : (
+            <div className="empty-state">Nao foi possivel preparar a interface web deste ativo.</div>
+          )}
+        </div>
+      </Modal>
     </section>
   )
 }

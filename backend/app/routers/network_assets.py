@@ -1,17 +1,21 @@
 from __future__ import annotations
 
 from datetime import datetime
-from urllib.parse import quote
+import re
+from urllib.parse import quote, urljoin, urlparse
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+import httpx
+
 from ..db import get_db
 from ..models import DVR, NetworkAsset, Unit
-from ..schemas import DiscoveredNetworkHost, NetworkAssetCreate, NetworkAssetOut, NetworkAssetUpdate, NetworkDiscoveryOut, NetworkTopologyOut, TopologyEdge, TopologyNode
-from ..security import encrypt_secret
+from ..schemas import DiscoveredNetworkHost, NetworkAssetCreate, NetworkAssetOut, NetworkAssetUpdate, NetworkAssetWebOut, NetworkDiscoveryOut, NetworkTopologyOut, TopologyEdge, TopologyNode
+from ..security import decrypt_secret, encrypt_secret
 from ..services.audit import record as audit
 from ..services.auth import ROLE_ADMIN, ROLE_OPERATOR, get_current_user, require_roles
 from ..services.monitoring import check_single_network_asset
@@ -80,6 +84,63 @@ def _build_connection(asset: NetworkAsset) -> tuple[str | None, str | None]:
     return "Destino tecnico", target
 
 
+def _build_asset_http_url(asset: NetworkAsset, path: str | None = None) -> str:
+    protocol = (asset.protocol or "http").lower()
+    if protocol not in {"http", "https"}:
+        raise HTTPException(status_code=400, detail="Este ativo nao usa interface HTTP/HTTPS.")
+
+    port = asset.port or _default_port(protocol)
+    base = f"{protocol}://{asset.host}"
+    if port and port != _default_port(protocol):
+        base += f":{port}"
+
+    asset_path = path if path is not None else (asset.path or "/")
+    return urljoin(f"{base}/", asset_path.lstrip("/"))
+
+
+def _validate_asset_target(asset: NetworkAsset, target: str) -> str:
+    base = urlparse(_build_asset_http_url(asset))
+    parsed = urlparse(target)
+    if (parsed.scheme, parsed.hostname, parsed.port or (443 if parsed.scheme == "https" else 80)) != (
+        base.scheme,
+        base.hostname,
+        base.port or (443 if base.scheme == "https" else 80),
+    ):
+        raise HTTPException(status_code=400, detail="URL de destino invalida para este ativo.")
+    return target
+
+
+def _build_asset_httpx_auth(asset: NetworkAsset) -> tuple[str, str] | None:
+    username = (asset.username or "").strip()
+    password = decrypt_secret(asset.password_encrypted) or ""
+    if not username:
+        return None
+    return (username, password)
+
+
+def _rewrite_proxy_html(html_text: str, asset_id: int, token: str | None) -> str:
+    token_suffix = f"&token={quote(token, safe='')}" if token else ""
+
+    def build_proxy_path(target_path: str) -> str:
+        normalized = target_path if target_path.startswith("/") else f"/{target_path}"
+        return f"/api/network-assets/{asset_id}/proxy?path={quote(normalized, safe='/')}{token_suffix}"
+
+    def replace_attr(match: re.Match[str]) -> str:
+        attr = match.group(1)
+        quote_char = match.group(2)
+        target_path = match.group(3)
+        return f'{attr}={quote_char}{build_proxy_path(target_path)}{quote_char}'
+
+    def replace_css(match: re.Match[str]) -> str:
+        quote_char = match.group(1) or ""
+        target_path = match.group(2)
+        return f"url({quote_char}{build_proxy_path(target_path)}{quote_char})"
+
+    rewritten = re.sub(r"""(href|src|action)=(["'])/([^"'?#]+(?:\?[^"'#]*)?(?:#[^"']*)?)\2""", replace_attr, html_text)
+    rewritten = re.sub(r"""url\((['"]?)/([^)'"]+)\1\)""", replace_css, rewritten)
+    return rewritten
+
+
 def _serialize(asset: NetworkAsset) -> NetworkAssetOut:
     connection_label, connection_target = _build_connection(asset)
     return NetworkAssetOut(
@@ -146,6 +207,20 @@ async def list_network_assets(unit_id: int | None = None, session: AsyncSession 
     return [_serialize(asset) for asset in assets]
 
 
+@router.get("/{asset_id}/web-url", response_model=NetworkAssetWebOut)
+async def network_asset_web_url(asset_id: int, session: AsyncSession = Depends(get_db)):
+    asset = await _get_asset(session, asset_id)
+    if not asset:
+        raise HTTPException(status_code=404, detail="Ativo de rede nao encontrado.")
+
+    url = _build_asset_http_url(asset)
+    return NetworkAssetWebOut(
+        url=url,
+        proxy_url=f"/api/network-assets/{asset.id}/proxy",
+        note="Use o proxy para abrir interfaces internas da unidade diretamente pelo SPYGYM.",
+    )
+
+
 @router.get("/topology/{unit_id}", response_model=NetworkTopologyOut)
 async def get_network_topology(unit_id: int, session: AsyncSession = Depends(get_db)):
     unit = await session.get(Unit, unit_id)
@@ -195,6 +270,56 @@ async def get_network_topology(unit_id: int, session: AsyncSession = Depends(get
         nodes=nodes,
         edges=edges,
     )
+
+
+@router.get("/{asset_id}/proxy")
+async def network_asset_web_proxy(
+    request: Request,
+    asset_id: int,
+    path: str = "/",
+    session: AsyncSession = Depends(get_db),
+    _: object = Depends(require_roles(ROLE_ADMIN, ROLE_OPERATOR)),
+):
+    asset = await _get_asset(session, asset_id)
+    if not asset:
+        raise HTTPException(status_code=404, detail="Ativo de rede nao encontrado.")
+
+    target = _validate_asset_target(asset, _build_asset_http_url(asset, path))
+    auth = _build_asset_httpx_auth(asset)
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0, verify=False, follow_redirects=True) as client:
+            resp = await client.get(target, auth=auth)
+
+        headers = dict(resp.headers)
+        for header in (
+            "x-frame-options",
+            "content-security-policy",
+            "content-length",
+            "content-encoding",
+            "x-content-type-options",
+        ):
+            headers.pop(header, None)
+            headers.pop(header.title(), None)
+
+        payload = resp.content
+        media_type = resp.headers.get("content-type", "text/html")
+        if "text/html" in media_type:
+            token = request.query_params.get("token")
+            encoding = resp.encoding or "utf-8"
+            html_text = resp.content.decode(encoding, errors="ignore")
+            payload = _rewrite_proxy_html(html_text, asset.id, token).encode(encoding)
+
+        return StreamingResponse(
+            iter([payload]),
+            status_code=resp.status_code,
+            media_type=media_type,
+            headers=headers,
+        )
+    except httpx.ConnectError:
+        raise HTTPException(status_code=502, detail="Ativo inacessivel. Verifique host, porta e VPN.")
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Erro ao acessar ativo: {exc}")
 
 
 def _guess_parent_asset_id(discovered: DiscoveredHost, existing_by_host: dict[str, NetworkAsset], created_by_host: dict[str, NetworkAsset]) -> int | None:

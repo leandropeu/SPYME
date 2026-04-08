@@ -264,6 +264,12 @@ class NetworkAssetOut(ORMModel, NetworkAssetBase):
     updated_at: datetime
 
 
+class NetworkAssetWebOut(BaseModel):
+    url: str
+    proxy_url: str
+    note: str | None = None
+
+
 class TopologyNode(BaseModel):
     id: str
     entity_id: int | None = None

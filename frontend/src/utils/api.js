@@ -66,11 +66,18 @@ export const api = {
     return request(`/network-assets${qs ? `?${qs}` : ''}`)
   },
   getNetworkTopology: (unitId) => request(`/network-assets/topology/${unitId}`),
+  getNetworkAssetWebUrl: (assetId) => request(`/network-assets/${assetId}/web-url`),
   createNetworkAsset: (payload) => request('/network-assets', { method: 'POST', body: JSON.stringify(payload) }),
   updateNetworkAsset: (id, payload) => request(`/network-assets/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
   deleteNetworkAsset: (id) => request(`/network-assets/${id}`, { method: 'DELETE' }),
   checkNetworkAsset: (id) => request(`/network-assets/${id}/check`, { method: 'POST' }),
   discoverNetworkAssets: (unitId) => request(`/network-assets/discover/${unitId}`, { method: 'POST' }),
+  networkAssetProxyUrl: (assetId, path = '/') => {
+    const params = new URLSearchParams()
+    params.set('path', path)
+    if (authToken) params.set('token', authToken)
+    return `${ROOT_API}/api/network-assets/${assetId}/proxy?${params.toString()}`
+  },
 
   listDvrs: (unitId) => request(unitId ? `/dvrs?unit_id=${unitId}` : '/dvrs'),
   createDvr: (payload) => request('/dvrs', { method: 'POST', body: JSON.stringify(payload) }),
