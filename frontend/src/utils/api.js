@@ -1,7 +1,11 @@
-const RAW_API = import.meta.env.VITE_API_URL || '/api'
+const RAW_API = (import.meta.env.VITE_API_URL || '/api').trim()
+const STRIPPED_API = RAW_API.replace(/\/+$/, '')
+const API_BASE = STRIPPED_API
+  ? (STRIPPED_API.match(/\/api$/i) ? STRIPPED_API : `${STRIPPED_API}/api`)
+  : '/api'
 
-export const API_BASE = RAW_API
-export const ROOT_API = RAW_API.replace(/\/api\/?$/, '')
+export { API_BASE }
+export const ROOT_API = API_BASE.replace(/\/api$/i, '')
 let authToken = null
 
 export function setAuthToken(token) {
