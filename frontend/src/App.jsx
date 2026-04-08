@@ -8,6 +8,7 @@ import DvrsPage from './pages/DvrsPage'
 import EventsPage from './pages/EventsPage'
 import LoginPage from './pages/LoginPage'
 import UnitsPage from './pages/UnitsPage'
+import UsersPage from './pages/UsersPage'
 import { clearStoredToken, getStoredToken, storeToken } from './utils/auth'
 import { api, setAuthToken } from './utils/api'
 
@@ -97,6 +98,7 @@ export default function App() {
         {page === 'cameras' && <CamerasPage refreshToken={refreshToken} connected={connected} currentUser={currentUser} onLogout={handleLogout} />}
         {page === 'events' && <EventsPage refreshToken={refreshToken} connected={connected} currentUser={currentUser} onLogout={handleLogout} />}
         {page === 'backups' && <BackupsPage refreshToken={refreshToken} connected={connected} currentUser={currentUser} onLogout={handleLogout} />}
+        {page === 'users' && <UsersPage refreshToken={refreshToken} connected={connected} currentUser={currentUser} onLogout={handleLogout} />}
       </main>
     </div>
   )

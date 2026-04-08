@@ -13,7 +13,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from .config import ALLOWED_HOSTS, ALLOWED_ORIGINS, APP_NAME, BACKUP_DIR, BACKUP_HOURS, BACKUP_RETENTION_DAYS, DB_PATH, HEALTHCHECK_SECONDS
 from .db import SessionLocal, init_db
-from .routers import auth, backups, cameras, cloud_accounts, dvr_remote, dvrs, events, streaming, units
+from .routers import auth, backups, cameras, cloud_accounts, dvr_remote, dvrs, events, streaming, units, users
 from .services.auth import ROLE_ADMIN, ROLE_OPERATOR, authenticate_websocket, require_roles
 from .services.backup import create_backup, set_broadcast_hook as set_backup_broadcast_hook
 from .services.monitoring import run_health_check, set_broadcast_hook as set_monitoring_broadcast_hook
@@ -122,6 +122,7 @@ app.include_router(auth.router,           prefix="/api")
 app.include_router(cloud_accounts.router, prefix="/api")
 app.include_router(streaming.router,      prefix="/api")
 app.include_router(dvr_remote.router,     prefix="/api")
+app.include_router(users.router,          prefix="/api")
 
 
 @app.get("/api/health")

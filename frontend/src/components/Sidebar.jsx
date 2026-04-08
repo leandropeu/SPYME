@@ -1,6 +1,6 @@
-import { Activity, Camera, DatabaseBackup, HardDrive, MapPinned, ShieldAlert } from 'lucide-react'
+import { Activity, Camera, DatabaseBackup, HardDrive, MapPinned, ShieldAlert, Users } from 'lucide-react'
 
-import { roleLabel } from '../utils/auth'
+import { isAdmin, roleLabel } from '../utils/auth'
 
 const items = [
   { id: 'units', label: 'Unidades', icon: MapPinned },
@@ -11,6 +11,10 @@ const items = [
 ]
 
 export default function Sidebar({ page, setPage, connected, currentUser }) {
+  const navItems = isAdmin(currentUser)
+    ? [...items, { id: 'users', label: 'Usuarios', icon: Users }]
+    : items
+
   return (
     <aside className="sidebar">
       <div className="brand-panel">
@@ -20,7 +24,7 @@ export default function Sidebar({ page, setPage, connected, currentUser }) {
       </div>
 
       <nav className="sidebar-nav">
-        {items.map(({ id, label, icon: Icon }) => (
+        {navItems.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             type="button"
