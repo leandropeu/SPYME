@@ -9,6 +9,7 @@ import DashboardPage from './pages/DashboardPage'
 import DvrsPage from './pages/DvrsPage'
 import EventsPage from './pages/EventsPage'
 import LoginPage from './pages/LoginPage'
+import MikrotikPage from './pages/MikrotikPage'
 import NetworkAssetsPage from './pages/NetworkAssetsPage'
 import ReportsPage from './pages/ReportsPage'
 import UnitsPage from './pages/UnitsPage'
@@ -99,6 +100,7 @@ export default function App() {
       <main className="content-shell">
         {page === 'dashboard' && <DashboardPage refreshToken={refreshToken} feed={feed} connected={connected} currentUser={currentUser} onLogout={handleLogout} />}
         {page === 'units' && <UnitsPage refreshToken={refreshToken} connected={connected} currentUser={currentUser} onLogout={handleLogout} />}
+        {page === 'mikrotik' && <MikrotikPage refreshToken={refreshToken} connected={connected} currentUser={currentUser} onLogout={handleLogout} />}
         {page === 'dvrs' && <DvrsPage refreshToken={refreshToken} connected={connected} currentUser={currentUser} onLogout={handleLogout} />}
         {page === 'cloud-accounts' && <CloudAccountsPage refreshToken={refreshToken} connected={connected} currentUser={currentUser} onLogout={handleLogout} />}
         {page === 'network-assets' && <NetworkAssetsPage refreshToken={refreshToken} connected={connected} currentUser={currentUser} onLogout={handleLogout} />}

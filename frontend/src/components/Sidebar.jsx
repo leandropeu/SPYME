@@ -5,6 +5,7 @@ import { isAdmin, roleLabel } from '../utils/auth'
 const items = [
   { id: 'dashboard', label: 'Painel', icon: LayoutDashboard },
   { id: 'units', label: 'Unidades', icon: MapPinned },
+  { id: 'mikrotik', label: 'MikroTik', icon: Network },
   { id: 'dvrs', label: 'DVRs', icon: HardDrive },
   { id: 'cloud-accounts', label: 'Contas cloud', icon: Cloud },
   { id: 'network-assets', label: 'Ativos de rede', icon: Network },
