@@ -61,9 +61,12 @@ export const api = {
     const qs = params.toString()
     return request(`/network-assets${qs ? `?${qs}` : ''}`)
   },
+  getNetworkTopology: (unitId) => request(`/network-assets/topology/${unitId}`),
   createNetworkAsset: (payload) => request('/network-assets', { method: 'POST', body: JSON.stringify(payload) }),
   updateNetworkAsset: (id, payload) => request(`/network-assets/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
   deleteNetworkAsset: (id) => request(`/network-assets/${id}`, { method: 'DELETE' }),
+  checkNetworkAsset: (id) => request(`/network-assets/${id}/check`, { method: 'POST' }),
+  discoverNetworkAssets: (unitId) => request(`/network-assets/discover/${unitId}`, { method: 'POST' }),
 
   listDvrs: (unitId) => request(unitId ? `/dvrs?unit_id=${unitId}` : '/dvrs'),
   createDvr: (payload) => request('/dvrs', { method: 'POST', body: JSON.stringify(payload) }),

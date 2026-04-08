@@ -49,6 +49,22 @@ logs/
 *.temp
 .cache/
 .eslintcache
+__pycache__/
+*.pyc
+tmp_vps_transfer/
+
+# --- Dados e Artefatos Gerados do Projeto ---
+backend/data/*.db
+backend/data/*.sqlite3
+backend/data/backups/
+deploy/openvpn-bundles/
+deploy/openvpn-routeros/
+deploy/openvpn-routeros-ros6-unit07/
+deploy/openvpn-routing/
+deploy/openvpn-units/
+deploy/openvpn-client-bundles-*.tar.gz
+deploy/openvpn-routeros-*.tar.gz
+deploy/mikrotik-sites/
 
 # --- Sistema Operacional ---
 .DS_Store

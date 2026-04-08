@@ -964,6 +964,68 @@ td span {
   gap: 8px;
 }
 
+.network-unit-filter {
+  max-width: 280px;
+}
+
+.infrastructure-overview {
+  display: grid;
+  gap: 12px;
+}
+
+.infrastructure-stats {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.topology-root-list,
+.topology-children {
+  display: grid;
+  gap: 12px;
+}
+
+.topology-tree-node {
+  position: relative;
+  display: grid;
+  gap: 10px;
+}
+
+.topology-children {
+  margin-left: 22px;
+  padding-left: 18px;
+  border-left: 1px dashed rgba(82, 133, 164, 0.28);
+}
+
+.topology-node {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(82, 133, 164, 0.22);
+  background:
+    radial-gradient(circle at top left, rgba(17, 141, 255, 0.08), transparent 42%),
+    rgba(7, 15, 22, 0.8);
+}
+
+.topology-node-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.topology-node-header span,
+.topology-link-label {
+  color: var(--muted);
+}
+
+.topology-node-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 .report-toolbar,
 .report-preview-actions {
   display: flex;

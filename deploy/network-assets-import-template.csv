@@ -1,0 +1,6 @@
+unit_code,name,asset_type,host,port,protocol,username,password,parent_asset_name,vendor,model,dvr_name,path,mac_address,local_network,notes,is_active
+07,MikroTik HTHON,mikrotik,10.0.7.1,8291,winbox,,,MikroTik,hEX,,, ,10.0.7.0/24,Gateway principal validado pela VPN OpenVPN em 2026-04-07,1
+07,Host Windows 10.0.7.5,machine,10.0.7.5,80,http,,,MikroTik HTHON,Microsoft,Windows Host,,, ,10.0.7.0/24,Host descoberto no scan. Portas abertas: 80 139 445,1
+07,Dispositivo DNS/Web 10.0.7.6,network-device,10.0.7.6,80,http,,,MikroTik HTHON,Desconhecido,dnsmasq/lighttpd,,, ,10.0.7.0/24,Host descoberto no scan. Servicos identificados: dnsmasq 2.79 e lighttpd 1.4.51,1
+07,DVR Hikvision 10.0.7.251,dvr,10.0.7.251,8000,hikvision-sdk,,,MikroTik HTHON,Hikvision,DVR/NVR,,, ,10.0.7.0/24,DVR validado por HTTP HTTPS RTSP e porta 8000 no scan via VPN,1
+07,Host Desconhecido 10.0.7.252,unknown,10.0.7.252,,icmp,,,MikroTik HTHON,Desconhecido,Host ativo,,, ,10.0.7.0/24,Host responde ao scan mas as portas comuns testadas apareceram fechadas,1

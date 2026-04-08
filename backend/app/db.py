@@ -95,6 +95,7 @@ async def _run_sqlite_migrations() -> None:
                 id INTEGER PRIMARY KEY,
                 unit_id INTEGER NOT NULL REFERENCES units(id) ON DELETE CASCADE,
                 dvr_id INTEGER REFERENCES dvrs(id) ON DELETE SET NULL,
+                parent_asset_id INTEGER REFERENCES network_assets(id) ON DELETE SET NULL,
                 name VARCHAR(120) NOT NULL,
                 asset_type VARCHAR(40) NOT NULL DEFAULT 'device',
                 vendor VARCHAR(80),
@@ -107,6 +108,10 @@ async def _run_sqlite_migrations() -> None:
                 path VARCHAR(255),
                 mac_address VARCHAR(32),
                 local_network VARCHAR(64),
+                status VARCHAR(20) NOT NULL DEFAULT 'unknown',
+                last_seen DATETIME,
+                last_checked DATETIME,
+                last_latency_ms FLOAT,
                 notes TEXT,
                 is_active BOOLEAN NOT NULL DEFAULT 1,
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -122,6 +127,9 @@ async def _run_sqlite_migrations() -> None:
         )
         await conn.exec_driver_sql(
             "CREATE INDEX IF NOT EXISTS ix_network_assets_unit_id ON network_assets (unit_id)"
+        )
+        await conn.exec_driver_sql(
+            "CREATE INDEX IF NOT EXISTS ix_network_assets_parent_asset_id ON network_assets (parent_asset_id)"
         )
 
         for table_name, columns in {
@@ -156,6 +164,8 @@ async def _run_sqlite_migrations() -> None:
                 "protocol": "VARCHAR(8) DEFAULT 'http'",
                 "username": "VARCHAR(80) DEFAULT 'admin'",
                 "password_encrypted": "TEXT",
+                "owner_username": "VARCHAR(80)",
+                "owner_password_encrypted": "TEXT",
                 "channel_count": "INTEGER NOT NULL DEFAULT 8",
                 "api_status_path": "VARCHAR(255)",
                 "device_info_path": "VARCHAR(255)",
@@ -185,6 +195,7 @@ async def _run_sqlite_migrations() -> None:
             },
             "monitoring_events": {
                 "source_type": "VARCHAR(20) DEFAULT 'dvr'",
+                "network_asset_id": "INTEGER REFERENCES network_assets(id) ON DELETE SET NULL",
                 "metadata_json": "TEXT",
                 "resolved_at": "DATETIME",
                 "duration_seconds": "FLOAT",
@@ -198,6 +209,7 @@ async def _run_sqlite_migrations() -> None:
             },
             "network_assets": {
                 "dvr_id": "INTEGER",
+                "parent_asset_id": "INTEGER REFERENCES network_assets(id) ON DELETE SET NULL",
                 "asset_type": "VARCHAR(40) NOT NULL DEFAULT 'device'",
                 "vendor": "VARCHAR(80)",
                 "model": "VARCHAR(120)",
@@ -208,6 +220,10 @@ async def _run_sqlite_migrations() -> None:
                 "path": "VARCHAR(255)",
                 "mac_address": "VARCHAR(32)",
                 "local_network": "VARCHAR(64)",
+                "status": "VARCHAR(20) NOT NULL DEFAULT 'unknown'",
+                "last_seen": "DATETIME",
+                "last_checked": "DATETIME",
+                "last_latency_ms": "FLOAT",
                 "notes": "TEXT",
                 "is_active": "BOOLEAN NOT NULL DEFAULT 1",
                 "created_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",

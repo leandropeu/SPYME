@@ -1,0 +1,29 @@
+client
+dev tun
+proto udp
+remote VPN_HOST VPN_PORT
+resolv-retry infinite
+nobind
+persist-key
+persist-tun
+remote-cert-tls server
+
+cipher AES-256-GCM
+auth SHA256
+verb 3
+
+<ca>
+COLE_A_CA_AQUI
+</ca>
+
+<cert>
+COLE_O_CERTIFICADO_DO_CLIENTE_AQUI
+</cert>
+
+<key>
+COLE_A_CHAVE_DO_CLIENTE_AQUI
+</key>
+
+<tls-crypt>
+COLE_A_CHAVE_TLS_CRYPT_AQUI
+</tls-crypt>

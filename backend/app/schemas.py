@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ORMModel(BaseModel):
@@ -137,6 +137,7 @@ class DVRBase(BaseModel):
     port: int = 80
     protocol: str = "http"
     username: str = "admin"
+    owner_username: str | None = None
     channel_count: int = 8
     api_status_path: str | None = None
     device_info_path: str | None = None
@@ -148,10 +149,20 @@ class DVRBase(BaseModel):
 
 class DVRCreate(DVRBase):
     password: str | None = None
+    owner_password: str | None = None
+
+    @model_validator(mode="after")
+    def validate_owner_credentials(self):
+        owner_user = (self.owner_username or "").strip()
+        owner_password = (self.owner_password or "").strip()
+        if bool(owner_user) != bool(owner_password):
+            raise ValueError("Preencha usuario e senha do login proprietario juntos.")
+        return self
 
 
 class DVRUpdate(DVRBase):
     password: str | None = None
+    owner_password: str | None = None
 
 
 class DVROut(ORMModel, DVRBase):
@@ -161,6 +172,7 @@ class DVROut(ORMModel, DVRBase):
     last_checked: datetime | None = None
     last_latency_ms: float | None = None
     has_password: bool = False
+    has_owner_password: bool = False
     unit_name: str | None = None
     camera_count: int = 0
     cloud_account: CloudAccountSummary | None = None
@@ -212,6 +224,7 @@ class CameraOut(ORMModel, CameraBase):
 class NetworkAssetBase(BaseModel):
     unit_id: int
     dvr_id: int | None = None
+    parent_asset_id: int | None = None
     name: str
     asset_type: str = "device"
     vendor: str | None = None
@@ -237,13 +250,72 @@ class NetworkAssetUpdate(NetworkAssetBase):
 
 class NetworkAssetOut(ORMModel, NetworkAssetBase):
     id: int
+    status: str = "unknown"
     unit_name: str | None = None
     dvr_name: str | None = None
+    parent_asset_name: str | None = None
     has_password: bool = False
     connection_label: str | None = None
     connection_target: str | None = None
+    last_seen: datetime | None = None
+    last_checked: datetime | None = None
+    last_latency_ms: float | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class TopologyNode(BaseModel):
+    id: str
+    entity_id: int | None = None
+    label: str
+    asset_type: str
+    status: str = "unknown"
+    parent_id: str | None = None
+    host: str | None = None
+    unit_name: str | None = None
+    connection_label: str | None = None
+    connection_target: str | None = None
+
+
+class TopologyEdge(BaseModel):
+    source_id: str
+    target_id: str
+    label: str | None = None
+
+
+class NetworkTopologyOut(BaseModel):
+    unit_id: int
+    unit_name: str
+    vpn_type: str | None = None
+    vpn_host: str | None = None
+    vpn_port: int | None = None
+    vpn_network_cidr: str | None = None
+    nodes: list[TopologyNode]
+    edges: list[TopologyEdge]
+
+
+class DiscoveredNetworkHost(BaseModel):
+    host: str
+    name: str
+    asset_type: str
+    vendor: str | None = None
+    model: str | None = None
+    protocol: str
+    port: int | None = None
+    open_ports: list[int] = []
+    notes: str | None = None
+    matched_asset_id: int | None = None
+
+
+class NetworkDiscoveryOut(BaseModel):
+    unit_id: int
+    unit_name: str
+    network_cidr: str
+    scanner: str
+    discovered_count: int
+    created_count: int
+    updated_count: int
+    hosts: list[DiscoveredNetworkHost]
 
 
 class MonitoringEventOut(ORMModel):
@@ -251,6 +323,7 @@ class MonitoringEventOut(ORMModel):
     unit_id: int | None = None
     dvr_id: int | None = None
     camera_id: int | None = None
+    network_asset_id: int | None = None
     source_type: str
     event_type: str
     severity: str

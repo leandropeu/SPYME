@@ -1,0 +1,5 @@
+# Arquivo CCD por unidade
+# Nome do arquivo: use o CN do certificado do cliente
+# Exemplo: 007-homero-thon
+
+iroute 10.7.251.0 255.255.255.0

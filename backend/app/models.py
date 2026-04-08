@@ -88,6 +88,8 @@ class DVR(TimestampMixin, Base):
     protocol: Mapped[str] = mapped_column(String(8), default="http")
     username: Mapped[str] = mapped_column(String(80), default="admin")
     password_encrypted: Mapped[str | None] = mapped_column(Text)
+    owner_username: Mapped[str | None] = mapped_column(String(80))
+    owner_password_encrypted: Mapped[str | None] = mapped_column(Text)
     channel_count: Mapped[int] = mapped_column(Integer, default=8)
     api_status_path: Mapped[str | None] = mapped_column(String(255))
     device_info_path: Mapped[str | None] = mapped_column(String(255))
@@ -137,6 +139,7 @@ class NetworkAsset(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     unit_id: Mapped[int] = mapped_column(ForeignKey("units.id", ondelete="CASCADE"), nullable=False, index=True)
     dvr_id: Mapped[int | None] = mapped_column(ForeignKey("dvrs.id", ondelete="SET NULL"), index=True)
+    parent_asset_id: Mapped[int | None] = mapped_column(ForeignKey("network_assets.id", ondelete="SET NULL"), index=True)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     asset_type: Mapped[str] = mapped_column(String(40), default="device")
     vendor: Mapped[str | None] = mapped_column(String(80))
@@ -149,10 +152,17 @@ class NetworkAsset(TimestampMixin, Base):
     path: Mapped[str | None] = mapped_column(String(255))
     mac_address: Mapped[str | None] = mapped_column(String(32))
     local_network: Mapped[str | None] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(20), default="unknown")
+    last_seen: Mapped[datetime | None] = mapped_column(DateTime)
+    last_checked: Mapped[datetime | None] = mapped_column(DateTime)
+    last_latency_ms: Mapped[float | None] = mapped_column(Float)
     notes: Mapped[str | None] = mapped_column(Text)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     unit: Mapped["Unit"] = relationship("Unit", back_populates="network_assets")
     dvr: Mapped["DVR | None"] = relationship("DVR")
+    parent_asset: Mapped["NetworkAsset | None"] = relationship("NetworkAsset", remote_side=[id], back_populates="children")
+    children: Mapped[list["NetworkAsset"]] = relationship("NetworkAsset", back_populates="parent_asset")
+    events: Mapped[list["MonitoringEvent"]] = relationship("MonitoringEvent", back_populates="network_asset", foreign_keys="MonitoringEvent.network_asset_id")
 
 
 class MonitoringEvent(Base):
@@ -161,6 +171,7 @@ class MonitoringEvent(Base):
     unit_id: Mapped[int | None] = mapped_column(ForeignKey("units.id", ondelete="SET NULL"), index=True)
     dvr_id: Mapped[int | None] = mapped_column(ForeignKey("dvrs.id", ondelete="SET NULL"), index=True)
     camera_id: Mapped[int | None] = mapped_column(ForeignKey("cameras.id", ondelete="SET NULL"), index=True)
+    network_asset_id: Mapped[int | None] = mapped_column(ForeignKey("network_assets.id", ondelete="SET NULL"), index=True)
     source_type: Mapped[str] = mapped_column(String(20), default="dvr")
     event_type: Mapped[str] = mapped_column(String(40), nullable=False)
     severity: Mapped[str] = mapped_column(String(20), default="warning")
@@ -173,6 +184,7 @@ class MonitoringEvent(Base):
     is_resolved: Mapped[bool] = mapped_column(Boolean, default=False)
     dvr: Mapped["DVR | None"] = relationship("DVR", back_populates="events", foreign_keys=[dvr_id])
     camera: Mapped["Camera | None"] = relationship("Camera", back_populates="events", foreign_keys=[camera_id])
+    network_asset: Mapped["NetworkAsset | None"] = relationship("NetworkAsset", back_populates="events", foreign_keys=[network_asset_id])
 
 
 class BackupRecord(Base):

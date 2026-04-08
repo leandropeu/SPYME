@@ -1,0 +1,33 @@
+port 1195
+proto tcp-server
+dev tun
+
+topology subnet
+server 10.45.0.0 255.255.255.0
+
+client-to-client
+client-config-dir /etc/openvpn/server/spygym-ros6/ccd
+ccd-exclusive
+ifconfig-pool-persist /etc/openvpn/server/spygym-ros6/ipp.txt
+keepalive 10 120
+persist-key
+persist-tun
+
+cipher AES-256-CBC
+data-ciphers AES-256-CBC
+data-ciphers-fallback AES-256-CBC
+auth SHA1
+
+user nobody
+group nogroup
+
+ca /etc/openvpn/server/spygym/pki/ca.crt
+cert /etc/openvpn/server/spygym/pki/issued/server.crt
+key /etc/openvpn/server/spygym/pki/private/server.key
+dh none
+
+crl-verify /etc/openvpn/server/spygym/pki/crl.pem
+
+status /var/log/openvpn/status-spygym-ros6.log
+log-append /var/log/openvpn/spygym-ros6.log
+verb 3

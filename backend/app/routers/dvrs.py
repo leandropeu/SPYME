@@ -40,6 +40,7 @@ def _serialize(dvr: DVR) -> DVROut:
         port=dvr.port,
         protocol=dvr.protocol,
         username=dvr.username,
+        owner_username=dvr.owner_username,
         channel_count=dvr.channel_count,
         api_status_path=dvr.api_status_path,
         device_info_path=dvr.device_info_path,
@@ -50,6 +51,7 @@ def _serialize(dvr: DVR) -> DVROut:
         last_checked=dvr.last_checked,
         last_latency_ms=dvr.last_latency_ms,
         has_password=bool(dvr.password_encrypted),
+        has_owner_password=bool(dvr.owner_password_encrypted),
         unit_name=dvr.unit.name if dvr.unit else None,
         camera_count=len(active_cameras),
         cloud_account_id=dvr.cloud_account_id,
@@ -86,10 +88,13 @@ async def create_dvr(
     unit = await session.get(Unit, payload.unit_id)
     if not unit:
         raise HTTPException(status_code=404, detail="Unidade nao encontrada.")
+    owner_username = (payload.owner_username or "").strip() or None
 
     dvr = DVR(
-        **payload.model_dump(exclude={"password"}),
+        **payload.model_dump(exclude={"password", "owner_password", "owner_username"}),
+        owner_username=owner_username,
         password_encrypted=encrypt_secret(payload.password),
+        owner_password_encrypted=encrypt_secret(payload.owner_password),
     )
     session.add(dvr)
     await session.commit()
@@ -114,11 +119,22 @@ async def update_dvr(
     )
     if not dvr:
         raise HTTPException(status_code=404, detail="DVR nao encontrado.")
+    owner_username = (payload.owner_username or "").strip()
+    owner_password = (payload.owner_password or "").strip()
+    if owner_password and not owner_username:
+        raise HTTPException(status_code=400, detail="Preencha o login proprietario para salvar a senha proprietaria.")
+    if owner_username and owner_username != (dvr.owner_username or "") and not owner_password and not dvr.owner_password_encrypted:
+        raise HTTPException(status_code=400, detail="Ao definir um novo login proprietario, informe tambem a senha proprietaria.")
 
-    for field, value in payload.model_dump(exclude={"password"}).items():
+    for field, value in payload.model_dump(exclude={"password", "owner_password", "owner_username"}).items():
         setattr(dvr, field, value)
+    dvr.owner_username = owner_username or None
     if payload.password:
         dvr.password_encrypted = encrypt_secret(payload.password)
+    if owner_password:
+        dvr.owner_password_encrypted = encrypt_secret(owner_password)
+    elif not owner_username:
+        dvr.owner_password_encrypted = None
 
     await session.commit()
     await session.refresh(dvr, attribute_names=["unit", "cameras", "cloud_account"])

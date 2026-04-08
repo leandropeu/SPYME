@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from datetime import datetime
 from typing import Awaitable, Callable
 
@@ -13,7 +14,7 @@ from sqlalchemy.orm import selectinload
 
 from ..config import HEALTHCHECK_CONCURRENCY
 from ..db import SessionLocal
-from ..models import Camera, DVR, MonitoringEvent
+from ..models import Camera, DVR, MonitoringEvent, NetworkAsset
 from .vendors import fetch_camera_snapshot, fetch_dvr_status, probe_camera_stream
 
 
@@ -55,6 +56,7 @@ async def _resolve_open_events(
     *,
     dvr_id: int | None = None,
     camera_id: int | None = None,
+    network_asset_id: int | None = None,
     resolved_at: datetime,
 ) -> None:
     query = select(MonitoringEvent).where(
@@ -65,6 +67,8 @@ async def _resolve_open_events(
         query = query.where(MonitoringEvent.dvr_id == dvr_id)
     if camera_id is not None:
         query = query.where(MonitoringEvent.camera_id == camera_id)
+    if network_asset_id is not None:
+        query = query.where(MonitoringEvent.network_asset_id == network_asset_id)
 
     with session.no_autoflush:
         events = (await session.execute(query)).scalars().all()
@@ -84,6 +88,7 @@ async def _record_status_change(
     unit_id: int | None,
     dvr_id: int | None,
     camera_id: int | None,
+    network_asset_id: int | None,
     severity: str,
     event_type: str,
     metadata: dict | None = None,
@@ -93,6 +98,7 @@ async def _record_status_change(
             unit_id=unit_id,
             dvr_id=dvr_id,
             camera_id=camera_id,
+            network_asset_id=network_asset_id,
             source_type=source_type,
             title=title,
             message=message,
@@ -143,6 +149,7 @@ async def _apply_dvr_result(
                 unit_id=dvr.unit_id,
                 dvr_id=dvr.id,
                 camera_id=None,
+                network_asset_id=None,
                 severity="critical",
                 event_type="offline",
                 metadata=result,
@@ -157,6 +164,7 @@ async def _apply_dvr_result(
                 unit_id=dvr.unit_id,
                 dvr_id=dvr.id,
                 camera_id=None,
+                network_asset_id=None,
                 severity="info",
                 event_type="online",
                 metadata=result,
@@ -223,6 +231,7 @@ async def _check_cameras(session: AsyncSession) -> None:
                     unit_id=camera.unit_id,
                     dvr_id=camera.dvr_id,
                     camera_id=camera.id,
+                    network_asset_id=None,
                     severity="warning" if new_status == "warning" else "critical",
                     event_type="offline" if new_status == "offline" else "warning",
                     metadata=metadata,
@@ -237,6 +246,7 @@ async def _check_cameras(session: AsyncSession) -> None:
                     unit_id=camera.unit_id,
                     dvr_id=camera.dvr_id,
                     camera_id=camera.id,
+                    network_asset_id=None,
                     severity="info",
                     event_type="online",
                     metadata=metadata,
@@ -246,6 +256,123 @@ async def _check_cameras(session: AsyncSession) -> None:
         camera.last_checked = now
         if new_status == "online":
             camera.last_seen = now
+
+
+def _default_port(protocol: str | None) -> int | None:
+    protocol = (protocol or "").lower()
+    return {
+        "http": 80,
+        "https": 443,
+        "ssh": 22,
+        "rdp": 3389,
+        "winbox": 8291,
+        "rtsp": 554,
+        "telnet": 23,
+    }.get(protocol)
+
+
+async def _probe_network_asset(asset: NetworkAsset) -> dict:
+    protocol = (asset.protocol or "").lower()
+    port = asset.port or _default_port(protocol)
+    host = (asset.host or "").strip()
+    if not asset.is_active:
+        return {"reachable": False, "status": "warning", "detail": "asset_inactive"}
+    if not host:
+        return {"reachable": False, "status": "warning", "detail": "host_missing"}
+    if not port:
+        return {"reachable": False, "status": "warning", "detail": "port_missing"}
+
+    started = time.perf_counter()
+    try:
+        reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=3.5)
+        writer.close()
+        try:
+            await writer.wait_closed()
+        except Exception:
+            pass
+        return {
+            "reachable": True,
+            "status": "online",
+            "latency_ms": round((time.perf_counter() - started) * 1000, 2),
+            "port": port,
+            "protocol": protocol or "tcp",
+        }
+    except Exception as exc:
+        return {
+            "reachable": False,
+            "status": "offline",
+            "latency_ms": round((time.perf_counter() - started) * 1000, 2),
+            "port": port,
+            "protocol": protocol or "tcp",
+            "detail": str(exc),
+        }
+
+
+async def _apply_network_asset_result(
+    session: AsyncSession,
+    asset: NetworkAsset,
+    result: dict,
+    *,
+    now: datetime,
+) -> None:
+    new_status = result.get("status") or ("online" if result.get("reachable") else "offline")
+
+    if asset.status != new_status:
+        if new_status in {"offline", "warning"}:
+            await _record_status_change(
+                session,
+                source_type="network_asset",
+                title=f"Ativo de rede com falha: {asset.name}",
+                message=f"O ativo {asset.name} da unidade {asset.unit.name} deixou de responder no acesso tecnico.",
+                unit_id=asset.unit_id,
+                dvr_id=asset.dvr_id,
+                camera_id=None,
+                network_asset_id=asset.id,
+                severity="warning" if new_status == "warning" else "critical",
+                event_type="offline" if new_status == "offline" else "warning",
+                metadata=result,
+            )
+        else:
+            await _resolve_open_events(session, network_asset_id=asset.id, resolved_at=now)
+            await _record_status_change(
+                session,
+                source_type="network_asset",
+                title=f"Ativo de rede online: {asset.name}",
+                message=f"O ativo {asset.name} voltou a responder no acesso tecnico.",
+                unit_id=asset.unit_id,
+                dvr_id=asset.dvr_id,
+                camera_id=None,
+                network_asset_id=asset.id,
+                severity="info",
+                event_type="online",
+                metadata=result,
+            )
+
+    asset.status = new_status
+    asset.last_checked = now
+    asset.last_latency_ms = result.get("latency_ms")
+    if new_status == "online":
+        asset.last_seen = now
+
+
+async def _check_network_assets(session: AsyncSession) -> None:
+    now = datetime.utcnow()
+    assets = (
+        await session.execute(
+            select(NetworkAsset)
+            .options(selectinload(NetworkAsset.unit), selectinload(NetworkAsset.dvr), selectinload(NetworkAsset.parent_asset))
+            .where(NetworkAsset.is_active.is_(True))
+        )
+    ).scalars().all()
+    results = await _run_limited(assets, _probe_network_asset)
+    for asset, result in zip(assets, results):
+        await _apply_network_asset_result(session, asset, result, now=now)
+
+
+async def check_single_network_asset(session: AsyncSession, asset: NetworkAsset) -> dict:
+    result = await _probe_network_asset(asset)
+    await _apply_network_asset_result(session, asset, result, now=datetime.utcnow())
+    return result
 
 
 async def run_health_check(*, skip_if_running: bool = False) -> bool:
@@ -260,6 +387,10 @@ async def run_health_check(*, skip_if_running: bool = False) -> bool:
 
             async with SessionLocal() as session:
                 await _check_cameras(session)
+                await session.commit()
+
+            async with SessionLocal() as session:
+                await _check_network_assets(session)
                 await session.commit()
 
             await _broadcast({"type": "health_check_complete", "checked_at": datetime.utcnow().isoformat()})

@@ -93,7 +93,7 @@ export default function UnitsPage({ refreshToken, connected, currentUser, onLogo
     <section className="page-shell">
       <Topbar
         title="Cadastro das unidades"
-        subtitle="Base mestre das academias, rede local e parametros de VPN por unidade."
+        subtitle="Base mestre das academias, rede local e parametros de OpenVPN ou outros tunéis por unidade."
         connected={connected}
         onRefresh={load}
         currentUser={currentUser}
@@ -211,7 +211,7 @@ export default function UnitsPage({ refreshToken, connected, currentUser, onLogo
           open={open}
           title={editing ? 'Editar unidade' : 'Nova unidade'}
           fields={fields}
-          initialValues={editing || { state: 'SP', vpn_type: 'l2tp-ipsec' }}
+          initialValues={editing || { state: 'SP', vpn_type: 'openvpn', vpn_port: 1194 }}
           onClose={() => { setOpen(false); setEditing(null) }}
           onSubmit={save}
         />

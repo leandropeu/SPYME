@@ -20,7 +20,7 @@ async def dashboard_overview(session: AsyncSession = Depends(get_db)):
     units = (
         await session.execute(
             select(Unit)
-            .options(selectinload(Unit.dvrs), selectinload(Unit.cameras))
+            .options(selectinload(Unit.dvrs), selectinload(Unit.cameras), selectinload(Unit.network_assets))
             .order_by(Unit.name.asc())
         )
     ).scalars().all()

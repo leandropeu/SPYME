@@ -1,0 +1,34 @@
+port 1194
+proto udp
+dev tun
+
+topology subnet
+server 10.44.0.0 255.255.255.0
+
+client-to-client
+client-config-dir /etc/openvpn/server/spygym/ccd
+ccd-exclusive
+ifconfig-pool-persist /etc/openvpn/server/spygym/ipp.txt
+keepalive 10 120
+persist-key
+persist-tun
+explicit-exit-notify 1
+
+cipher AES-256-GCM
+data-ciphers AES-256-GCM:AES-128-GCM
+auth SHA256
+
+user nobody
+group nogroup
+
+ca /etc/openvpn/server/spygym/pki/ca.crt
+cert /etc/openvpn/server/spygym/pki/issued/server.crt
+key /etc/openvpn/server/spygym/pki/private/server.key
+dh none
+tls-crypt /etc/openvpn/server/spygym/pki/tls-crypt.key
+
+crl-verify /etc/openvpn/server/spygym/pki/crl.pem
+
+status /var/log/openvpn/status.log
+log-append /var/log/openvpn/spygym.log
+verb 3
