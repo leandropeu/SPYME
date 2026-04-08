@@ -57,6 +57,7 @@ export const api = {
   createUnit: (payload) => request('/units', { method: 'POST', body: JSON.stringify(payload) }),
   updateUnit: (id, payload) => request(`/units/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
   deleteUnit: (id) => request(`/units/${id}`, { method: 'DELETE' }),
+  discoverUnitDvrs: (id) => request(`/units/${id}/discover-dvrs`, { method: 'POST' }),
 
   listDvrs: (unitId) => request(unitId ? `/dvrs?unit_id=${unitId}` : '/dvrs'),
   createDvr: (payload) => request('/dvrs', { method: 'POST', body: JSON.stringify(payload) }),

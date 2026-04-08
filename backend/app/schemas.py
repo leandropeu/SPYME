@@ -324,6 +324,31 @@ class NetworkDiscoveryOut(BaseModel):
     hosts: list[DiscoveredNetworkHost]
 
 
+class DiscoveredDvrHost(BaseModel):
+    host: str
+    name: str
+    vendor: str | None = None
+    model: str | None = None
+    protocol: str = "http"
+    port: int | None = None
+    open_ports: list[int] = []
+    username_hint: str | None = None
+    notes: str | None = None
+    matched_dvr_id: int | None = None
+    detection_source: str | None = None
+
+
+class UnitDvrDiscoveryOut(BaseModel):
+    unit_id: int
+    unit_name: str
+    network_cidr: str
+    scanner: str
+    discovered_count: int
+    created_count: int
+    updated_count: int
+    hosts: list[DiscoveredDvrHost]
+
+
 class MonitoringEventOut(ORMModel):
     id: int
     unit_id: int | None = None

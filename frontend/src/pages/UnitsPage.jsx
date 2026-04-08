@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Pencil, Plus, Trash2 } from 'lucide-react'
+import { Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
 
 import EntityModal from '../components/EntityModal'
 import StatusBadge from '../components/StatusBadge'
@@ -48,6 +48,8 @@ export default function UnitsPage({ refreshToken, connected, currentUser, onLogo
   const [editing, setEditing] = useState(null)
   const [open, setOpen] = useState(false)
   const [error, setError] = useState('')
+  const [scanSummary, setScanSummary] = useState('')
+  const [busyUnitId, setBusyUnitId] = useState(null)
   const allowManage = canManage(currentUser)
 
   const load = async () => {
@@ -73,10 +75,25 @@ export default function UnitsPage({ refreshToken, connected, currentUser, onLogo
       ...form,
       vpn_port: form.vpn_port ? Number(form.vpn_port) : null,
     }
+    setScanSummary('')
+    let savedUnit
     if (editing?.id) {
-      await api.updateUnit(editing.id, payload)
+      savedUnit = await api.updateUnit(editing.id, payload)
     } else {
-      await api.createUnit(payload)
+      savedUnit = await api.createUnit(payload)
+    }
+    if (savedUnit?.vpn_network_cidr) {
+      setBusyUnitId(savedUnit.id)
+      try {
+        const result = await api.discoverUnitDvrs(savedUnit.id)
+        setScanSummary(
+          `${savedUnit.name}: ${result.discovered_count} DVRs detectados, ${result.created_count} cadastrados e ${result.updated_count} atualizados. Preencha apenas usuario e senha dos gravadores encontrados.`,
+        )
+      } catch (err) {
+        setError(`Unidade salva, mas a descoberta automatica nao concluiu: ${err.message}`)
+      } finally {
+        setBusyUnitId(null)
+      }
     }
     setOpen(false)
     setEditing(null)
@@ -87,6 +104,23 @@ export default function UnitsPage({ refreshToken, connected, currentUser, onLogo
     if (!window.confirm(`Excluir ${unit.name}?`)) return
     await api.deleteUnit(unit.id)
     load()
+  }
+
+  const scanUnitDvrs = async (unit) => {
+    setError('')
+    setScanSummary('')
+    setBusyUnitId(unit.id)
+    try {
+      const result = await api.discoverUnitDvrs(unit.id)
+      setScanSummary(
+        `${unit.name}: ${result.discovered_count} DVRs detectados, ${result.created_count} cadastrados e ${result.updated_count} atualizados. Revise usuario e senha para acesso remoto.`,
+      )
+      await load()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusyUnitId(null)
+    }
   }
 
   return (
@@ -117,6 +151,7 @@ export default function UnitsPage({ refreshToken, connected, currentUser, onLogo
       </div>
 
       {error ? <div className="alert-banner error">{error}</div> : null}
+      {scanSummary ? <div className="alert-banner success">{scanSummary}</div> : null}
 
       {view === 'cards' ? (
         <div className="card-grid unit-summary-grid">
@@ -148,6 +183,10 @@ export default function UnitsPage({ refreshToken, connected, currentUser, onLogo
                 </div>
                 {allowManage ? (
                   <div className="entity-card-actions compact-actions unit-summary-actions">
+                    <button type="button" className="button ghost" onClick={() => scanUnitDvrs(unit)} disabled={busyUnitId === unit.id}>
+                      <RefreshCw size={16} className={busyUnitId === unit.id ? 'spin' : ''} />
+                      Mapear DVRs
+                    </button>
                     <button type="button" className="button ghost" onClick={() => { setEditing(unit); setOpen(true) }}>
                       <Pencil size={16} />
                       Editar
@@ -193,6 +232,7 @@ export default function UnitsPage({ refreshToken, connected, currentUser, onLogo
                     <td className="actions-cell">
                       {allowManage ? (
                         <>
+                          <button type="button" className="button ghost" onClick={() => scanUnitDvrs(unit)} disabled={busyUnitId === unit.id}>Mapear DVRs</button>
                           <button type="button" className="button ghost" onClick={() => { setEditing(unit); setOpen(true) }}>Editar</button>
                           <button type="button" className="button danger" onClick={() => remove(unit)}>Excluir</button>
                         </>

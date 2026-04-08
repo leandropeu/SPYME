@@ -7,10 +7,11 @@ from sqlalchemy.orm import selectinload
 
 from ..db import get_db
 from ..models import Unit
-from ..schemas import UnitCreate, UnitOut, UnitUpdate
+from ..schemas import UnitCreate, UnitDvrDiscoveryOut, UnitOut, UnitUpdate
 from ..security import encrypt_secret
 from ..services.audit import record as audit
 from ..services.auth import ROLE_ADMIN, ROLE_OPERATOR, get_current_user, require_roles
+from ..services.unit_dvr_discovery import discover_unit_dvrs
 
 
 router = APIRouter(prefix="/units", tags=["units"], dependencies=[Depends(get_current_user)])
@@ -119,3 +120,32 @@ async def delete_unit(
     await session.delete(unit)
     await session.commit()
     return {"message": "Unidade removida com sucesso."}
+
+
+@router.post("/{unit_id}/discover-dvrs", response_model=UnitDvrDiscoveryOut)
+async def discover_unit_network_dvrs(
+    unit_id: int,
+    session: AsyncSession = Depends(get_db),
+    current_user=Depends(require_roles(ROLE_ADMIN, ROLE_OPERATOR)),
+):
+    unit = await session.get(Unit, unit_id)
+    if not unit:
+        raise HTTPException(status_code=404, detail="Unidade nao encontrada.")
+
+    try:
+        result = await discover_unit_dvrs(session, unit, persist=True)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    await audit(
+        session,
+        action="DISCOVER",
+        entity="unit",
+        entity_id=unit_id,
+        user_id=current_user.id,
+        user_email=current_user.email,
+        detail=f"Descoberta automatica de DVRs executada na unidade: {unit.name}",
+        after=result.model_dump(),
+    )
+    await session.commit()
+    return result

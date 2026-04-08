@@ -9,8 +9,10 @@ import subprocess
 from dataclasses import dataclass
 from typing import Iterable
 
+import httpx
 
-COMMON_PORTS = [22, 23, 53, 80, 81, 88, 139, 161, 389, 443, 445, 554, 8000, 8080, 8291, 8728, 8729, 3389]
+
+COMMON_PORTS = [22, 23, 53, 80, 81, 88, 139, 161, 389, 443, 445, 554, 8000, 8080, 8291, 8728, 8729, 3389, 37777]
 PRIMARY_SYN_PORTS = [80, 443, 445, 554, 8291, 3389, 53]
 NMAP_HOST_PATTERN = re.compile(r"Host:\s+(\S+)\s+Status:\s+Up")
 NMAP_PORT_PATTERN = re.compile(r"Host:\s+(\S+).*Ports:\s+(.*)")
@@ -97,6 +99,22 @@ def _run_nmap_host_discovery(cidr: str) -> tuple[list[str], dict[str, list[int]]
     return hosts, _parse_nmap_grepable_ports(port_scan.stdout)
 
 
+def _run_nmap_port_sweep(cidr: str) -> tuple[list[str], dict[str, list[int]]] | None:
+    if not shutil.which("nmap"):
+        return None
+
+    common_ports = ",".join(str(port) for port in COMMON_PORTS)
+    port_scan = subprocess.run(
+        ["nmap", "-n", "-Pn", f"-p{common_ports}", "-oG", "-", cidr],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+    ports_by_host = _parse_nmap_grepable_ports(port_scan.stdout)
+    return sorted(ports_by_host), ports_by_host
+
+
 async def _probe_port(host: str, port: int, timeout: float = 0.7) -> bool:
     try:
         reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=timeout)
@@ -159,11 +177,14 @@ def classify_host(host: str, open_ports: list[int]) -> DiscoveredHost:
         asset_type = "mikrotik"
         vendor = "MikroTik"
         protocol = "winbox" if 8291 in ports else "http"
-    elif 8000 in ports or 554 in ports:
+    elif 8000 in ports or 37777 in ports or 554 in ports:
         asset_type = "dvr"
-        vendor = "Hikvision" if 8000 in ports else None
+        if 8000 in ports:
+            vendor = "Hikvision"
+        elif 37777 in ports:
+            vendor = "Intelbras"
         protocol = "https" if 443 in ports else "http"
-        notes_bits.append("Equipamento com perfil de DVR/NVR identificado por RTSP/porta 8000.")
+        notes_bits.append("Equipamento com perfil de DVR/NVR identificado por portas de video ou servico.")
     elif 3389 in ports:
         asset_type = "machine"
         vendor = "Microsoft"
@@ -219,9 +240,13 @@ def classify_host(host: str, open_ports: list[int]) -> DiscoveredHost:
 async def discover_network(cidr: str) -> tuple[list[DiscoveredHost], str]:
     discovered = await asyncio.to_thread(_run_nmap_host_discovery, cidr)
     scanner = "nmap"
-    if discovered is None:
-        scanner = "tcp-fallback"
-        hosts, ports_by_host = await _fallback_discovery(cidr)
+    if discovered is None or not discovered[0]:
+        discovered = await asyncio.to_thread(_run_nmap_port_sweep, cidr)
+        scanner = "nmap-pn" if discovered and discovered[0] else "tcp-fallback"
+        if discovered and discovered[0]:
+            hosts, ports_by_host = discovered
+        else:
+            hosts, ports_by_host = await _fallback_discovery(cidr)
     else:
         hosts, ports_by_host = discovered
 
@@ -229,3 +254,93 @@ async def discover_network(cidr: str) -> tuple[list[DiscoveredHost], str]:
     for host in hosts:
         results.append(classify_host(host, ports_by_host.get(host, [])))
     return sorted(results, key=lambda item: socket.inet_aton(item.host)), scanner
+
+
+async def _http_probe(protocol: str, host: str, port: int, path: str) -> tuple[int | None, dict[str, str], str]:
+    url = f"{protocol}://{host}:{port}{path}"
+    try:
+        async with httpx.AsyncClient(timeout=3.5, verify=False, follow_redirects=True) as client:
+            response = await client.get(url, headers={"User-Agent": "SPYGYM-Discovery/1.0"})
+        return response.status_code, dict(response.headers), response.text[:2500]
+    except Exception:
+        return None, {}, ""
+
+
+async def fingerprint_dvr(host: str, open_ports: list[int]) -> DiscoveredHost | None:
+    ports = sorted(set(open_ports))
+    dvr_like_ports = {80, 443, 554, 8000, 8080, 37777}
+    if not dvr_like_ports.intersection(ports):
+        return None
+
+    detected_vendor = "hikvision" if 8000 in ports else "intelbras" if 37777 in ports else None
+    protocol = "https" if 443 in ports else "http"
+    port = 443 if 443 in ports else 80 if 80 in ports else 8080 if 8080 in ports else 37777 if 37777 in ports else 8000 if 8000 in ports else 554
+    detection_source = []
+    notes = [f"Portas abertas: {', '.join(str(item) for item in ports)}."]
+    model = None
+
+    http_ports = [item for item in (443, 80, 8080) if item in ports]
+    probe_paths = ["/", "/doc/page/login.asp", "/ISAPI/System/status", "/cgi-bin/magicBox.cgi?action=getSystemInfo"]
+
+    for http_port in http_ports:
+        current_protocol = "https" if http_port == 443 else "http"
+        for path in probe_paths:
+            status, headers, text = await _http_probe(current_protocol, host, http_port, path)
+            if status is None:
+                continue
+
+            combined = f"{headers.get('Server', '')}\n{text}".lower()
+            if "hikvision" in combined or "webcomponents" in combined or "doc/page/login.asp" in combined:
+                detected_vendor = "hikvision"
+                protocol = current_protocol
+                port = http_port
+                detection_source.append(f"{current_protocol}:{http_port}{path}")
+                break
+            if "intelbras" in combined or "dahua" in combined or "magicbox" in combined:
+                detected_vendor = "intelbras"
+                protocol = current_protocol
+                port = http_port
+                detection_source.append(f"{current_protocol}:{http_port}{path}")
+                break
+            if path.startswith("/ISAPI/") and status in {200, 401, 403}:
+                detected_vendor = detected_vendor or "hikvision"
+                protocol = current_protocol
+                port = http_port
+                detection_source.append(f"{current_protocol}:{http_port}{path}")
+                break
+            if "magicbox" in path.lower() and status in {200, 401, 403}:
+                detected_vendor = detected_vendor or "intelbras"
+                protocol = current_protocol
+                port = http_port
+                detection_source.append(f"{current_protocol}:{http_port}{path}")
+                break
+        if detected_vendor:
+            break
+
+    if not detected_vendor and (8000 in ports or 554 in ports):
+        detected_vendor = "hikvision"
+    if not detected_vendor and 37777 in ports:
+        detected_vendor = "intelbras"
+    if not detected_vendor:
+        return None
+
+    if detected_vendor == "hikvision":
+        name = f"DVR Hikvision {host}"
+        notes.append("Pre-cadastro sugerido com porta web e servico Hikvision detectados.")
+    else:
+        name = f"DVR Intelbras {host}"
+        notes.append("Pre-cadastro sugerido com assinatura Intelbras/Dahua na rede.")
+
+    if 554 in ports:
+        notes.append("RTSP visivel pela VPN, favoravel para visualizacao e playback.")
+
+    return DiscoveredHost(
+        host=host,
+        open_ports=ports,
+        asset_type="dvr",
+        vendor=detected_vendor.title(),
+        model=model,
+        protocol=protocol,
+        port=port,
+        notes=f"{name}. {' '.join(notes)} Fonte: {', '.join(detection_source) or 'portas'}",
+    )
