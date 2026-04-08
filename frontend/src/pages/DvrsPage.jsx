@@ -39,6 +39,10 @@ function getStatusSurfaceClass(status, row = false) {
   return ''
 }
 
+function isPlaybackFirmwareLimitation(message) {
+  return String(message || '').toLowerCase().includes('firmware hikvision recusou a busca isapi')
+}
+
 export default function DvrsPage({ refreshToken, connected, currentUser, onLogout }) {
   const [dvrs, setDvrs] = useState([])
   const [units, setUnits] = useState([])
@@ -153,7 +157,14 @@ export default function DvrsPage({ refreshToken, connected, currentUser, onLogou
         filters: nextFilters,
       }))
     } catch (err) {
-      setConsoleState((current) => ({ ...current, recordingsLoading: false, error: err.message }))
+      setConsoleState((current) => ({
+        ...current,
+        recordingsLoading: false,
+        error: isPlaybackFirmwareLimitation(err.message) ? '' : err.message,
+        notice: isPlaybackFirmwareLimitation(err.message)
+          ? 'Este DVR exige playback pela interface nativa. Use "Abrir interface" para consultar gravacoes neste modelo.'
+          : '',
+      }))
     }
   }
 
@@ -179,7 +190,11 @@ export default function DvrsPage({ refreshToken, connected, currentUser, onLogou
         : ''
 
     const notice = recordingResult.status === 'rejected'
-      ? `Consulta inicial de gravações indisponível: ${recordingResult.reason.message}`
+      ? (
+        isPlaybackFirmwareLimitation(recordingResult.reason.message)
+          ? 'Este DVR exige playback pela interface nativa. Use "Abrir interface" para consultar gravacoes neste modelo.'
+          : `Consulta inicial de gravações indisponível: ${recordingResult.reason.message}`
+      )
       : ''
 
     setConsoleState({

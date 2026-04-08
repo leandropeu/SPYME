@@ -81,6 +81,63 @@ def get_dvr_web_url(dvr: DVR) -> str:
     return f"{dvr.protocol}://{dvr.host}:{dvr.port}"
 
 
+def _build_hik_search_bodies(channel: int, start: datetime, end: datetime) -> list[str]:
+    track_id = f"{channel}01"
+    start_text = start.strftime("%Y-%m-%dT%H:%M:%SZ")
+    end_text = end.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    return [
+        f"""<?xml version="1.0" encoding="UTF-8"?>
+<CMSearchDescription>
+  <searchID>spygym-search</searchID>
+  <trackList>
+    <trackID>{track_id}</trackID>
+  </trackList>
+  <timeSpanList>
+    <timeSpan>
+      <startTime>{start_text}</startTime>
+      <endTime>{end_text}</endTime>
+    </timeSpan>
+  </timeSpanList>
+  <maxResults>50</maxResults>
+  <searchResultPosition>0</searchResultPosition>
+  <metadataList>
+    <metadataDescriptor>//recordType.meta.std-cgi.com</metadataDescriptor>
+  </metadataList>
+</CMSearchDescription>""",
+        f"""<?xml version="1.0" encoding="UTF-8"?>
+<CMSearchDescription version="1.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+  <searchID>spygym-search</searchID>
+  <trackIDList>
+    <trackID>{track_id}</trackID>
+  </trackIDList>
+  <timeSpanList>
+    <timeSpan>
+      <startTime>{start_text}</startTime>
+      <endTime>{end_text}</endTime>
+    </timeSpan>
+  </timeSpanList>
+  <maxResults>50</maxResults>
+  <searchResultPosition>0</searchResultPosition>
+</CMSearchDescription>""",
+        f"""<?xml version="1.0" encoding="UTF-8"?>
+<CMSearchDescription version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+  <searchID>spygym-search</searchID>
+  <trackIDList>
+    <trackID>{track_id}</trackID>
+  </trackIDList>
+  <timeSpanList>
+    <timeSpan>
+      <startTime>{start_text}</startTime>
+      <endTime>{end_text}</endTime>
+    </timeSpan>
+  </timeSpanList>
+  <maxResults>50</maxResults>
+  <searchResultPosition>0</searchResultPosition>
+</CMSearchDescription>""",
+    ]
+
+
 # ── Hikvision ISAPI ───────────────────────────────────────────
 
 async def hik_list_recordings(
@@ -91,41 +148,32 @@ async def hik_list_recordings(
 ) -> list[dict[str, Any]]:
     """Lista gravações de um canal Hikvision via ISAPI."""
     url = build_http_url(dvr, f"/ISAPI/ContentMgmt/search")
-    body = f"""<?xml version="1.0" encoding="UTF-8"?>
-<CMSearchDescription>
-  <searchID>spygym-search</searchID>
-  <trackList>
-    <trackID>{channel}01</trackID>
-  </trackList>
-  <timeSpanList>
-    <timeSpan>
-      <startTime>{start.strftime('%Y-%m-%dT%H:%M:%SZ')}</startTime>
-      <endTime>{end.strftime('%Y-%m-%dT%H:%M:%SZ')}</endTime>
-    </timeSpan>
-  </timeSpanList>
-  <maxResults>50</maxResults>
-  <searchResultPostion>0</searchResultPostion>
-  <metadataList>
-    <metadataDescriptor>//recordType.meta.std-cgi.com</metadataDescriptor>
-  </metadataList>
-</CMSearchDescription>"""
+    resp: httpx.Response | None = None
+    last_bad_xml_error: httpx.HTTPStatusError | None = None
 
     async with httpx.AsyncClient(timeout=TIMEOUT, verify=False) as client:
-        resp = await client.post(
-            url,
-            content=body,
-            auth=_auth(dvr),
-            headers={"Content-Type": "application/xml"},
-        )
-        try:
-            resp.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            if exc.response.status_code == 400 and "badXmlContent" in exc.response.text:
-                raise ValueError(
-                    "Este firmware Hikvision recusou a busca ISAPI de gravacoes. "
-                    "Use a interface web/proxy do DVR para playback ate ajustarmos esse modelo."
-                ) from exc
-            raise
+        for body in _build_hik_search_bodies(channel, start, end):
+            candidate = await client.post(
+                url,
+                content=body,
+                auth=_auth(dvr),
+                headers={"Content-Type": "application/xml; charset=UTF-8"},
+            )
+            try:
+                candidate.raise_for_status()
+                resp = candidate
+                break
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code == 400 and "badXmlContent" in exc.response.text:
+                    last_bad_xml_error = exc
+                    continue
+                raise
+
+    if resp is None:
+        raise ValueError(
+            "Este firmware Hikvision recusou a busca ISAPI de gravacoes. "
+            "Use a interface web/proxy do DVR para playback ate ajustarmos esse modelo."
+        ) from last_bad_xml_error
 
     recordings = []
     try:
