@@ -49,35 +49,10 @@ export const api = {
   login: (payload) => request('/auth/login', { method: 'POST', body: JSON.stringify(payload), skipAuth: true }),
   logout: () => request('/auth/logout', { method: 'POST' }),
   getMe: () => request('/auth/me'),
-  listUsers: () => request('/users'),
-  createUser: (payload) => request('/users', { method: 'POST', body: JSON.stringify(payload) }),
-  updateUser: (id, payload) => request(`/users/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
-  deleteUser: (id) => request(`/users/${id}`, { method: 'DELETE' }),
-  getOverview: () => request('/dashboard/overview'),
   listUnits: () => request('/units'),
   createUnit: (payload) => request('/units', { method: 'POST', body: JSON.stringify(payload) }),
   updateUnit: (id, payload) => request(`/units/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
   deleteUnit: (id) => request(`/units/${id}`, { method: 'DELETE' }),
-  listNetworkAssets: ({ unitId, assetType } = {}) => {
-    const params = new URLSearchParams()
-    if (unitId) params.set('unit_id', unitId)
-    if (assetType) params.set('asset_type', assetType)
-    const qs = params.toString()
-    return request(`/network-assets${qs ? `?${qs}` : ''}`)
-  },
-  getNetworkTopology: (unitId) => request(`/network-assets/topology/${unitId}`),
-  getNetworkAssetWebUrl: (assetId) => request(`/network-assets/${assetId}/web-url`),
-  createNetworkAsset: (payload) => request('/network-assets', { method: 'POST', body: JSON.stringify(payload) }),
-  updateNetworkAsset: (id, payload) => request(`/network-assets/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
-  deleteNetworkAsset: (id) => request(`/network-assets/${id}`, { method: 'DELETE' }),
-  checkNetworkAsset: (id) => request(`/network-assets/${id}/check`, { method: 'POST' }),
-  discoverNetworkAssets: (unitId) => request(`/network-assets/discover/${unitId}`, { method: 'POST' }),
-  networkAssetProxyUrl: (assetId, path = '/') => {
-    const params = new URLSearchParams()
-    params.set('path', path)
-    if (authToken) params.set('token', authToken)
-    return `${ROOT_API}/api/network-assets/${assetId}/proxy?${params.toString()}`
-  },
 
   listDvrs: (unitId) => request(unitId ? `/dvrs?unit_id=${unitId}` : '/dvrs'),
   createDvr: (payload) => request('/dvrs', { method: 'POST', body: JSON.stringify(payload) }),
@@ -137,5 +112,4 @@ export const api = {
   listEvents: (limit = 100) => request(`/events?limit=${limit}`),
   listBackups: () => request('/backups'),
   runBackup: () => request('/backups/run', { method: 'POST' }),
-  runMonitor: () => request('/monitor/run', { method: 'POST' }),
 }
