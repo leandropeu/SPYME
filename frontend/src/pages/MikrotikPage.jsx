@@ -1,4 +1,4 @@
-import { Copy, Router, ShieldCheck, TerminalSquare } from 'lucide-react'
+import { Copy, ExternalLink, Router, ShieldCheck, TerminalSquare } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
 import StatusBadge from '../components/StatusBadge'
@@ -105,6 +105,11 @@ export default function MikrotikPage({ refreshToken, connected, currentUser, onL
     } catch {
       setError(`Nao foi possivel copiar ${label.toLowerCase()}.`)
     }
+  }
+
+  const openWebfig = (asset) => {
+    const url = api.networkAssetProxyUrl(asset.id, asset.path || '/')
+    window.open(url, '_blank', 'noopener,noreferrer')
   }
 
   return (
@@ -256,6 +261,12 @@ export default function MikrotikPage({ refreshToken, connected, currentUser, onL
                   <button type="button" className="button ghost" onClick={() => copyTarget(winboxTarget, 'Destino WinBox')}>
                     <Copy size={16} />
                     Copiar WinBox
+                  </button>
+                ) : null}
+                {webfigTarget ? (
+                  <button type="button" className="button primary" onClick={() => openWebfig(asset)}>
+                    <ExternalLink size={16} />
+                    Abrir WebFig
                   </button>
                 ) : null}
                 {webfigTarget ? (
