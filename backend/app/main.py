@@ -123,6 +123,7 @@ app.include_router(cloud_accounts.router, prefix="/api")
 app.include_router(streaming.router,      prefix="/api")
 app.include_router(dvr_remote.router,     prefix="/api")
 app.include_router(users.router,          prefix="/api")
+app.include_router(dvr_remote.root_router)
 
 
 @app.get("/api/health")
