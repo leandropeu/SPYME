@@ -398,8 +398,8 @@ export default function DvrsPage({ refreshToken, connected, currentUser, onLogou
             </div>
 
             <div className="entity-card-actions wrap compact-actions">
-              {consoleState.webInfo?.url ? (
-                <a className="button primary" href={consoleState.webInfo.url} target="_blank" rel="noreferrer">
+              {consoleDvr ? (
+                <a className="button primary" href={api.dvrProxyUrl(consoleDvr.id)} target="_blank" rel="noreferrer">
                   <Eye size={16} />
                   Abrir interface
                 </a>
