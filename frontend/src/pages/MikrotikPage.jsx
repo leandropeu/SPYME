@@ -6,6 +6,9 @@ import Topbar from '../components/Topbar'
 import { api } from '../utils/api'
 import { formatDate } from '../utils/format'
 
+const SPYGYM_VPN_SERVER_IP = '10.45.0.1'
+const SPYGYM_VPN_MGMT_CIDR = '10.45.0.0/24'
+
 function buildWinboxTarget(asset) {
   if (!asset.host) return ''
   return `${asset.host}:8291`
@@ -25,6 +28,31 @@ function buildSshTarget(asset) {
   const userPrefix = asset.username ? `${asset.username}@` : ''
   const port = asset.port && asset.port !== 22 ? ` -p ${asset.port}` : ''
   return `ssh ${userPrefix}${asset.host}${port}`
+}
+
+function buildMikrotikMgmtScript(asset, unit) {
+  const unitLabel = unit ? `${unit.code} - ${unit.name}` : asset?.unit_name || 'unidade selecionada'
+  return [
+    `# Liberacao de gestao SPYGYM para ${unitLabel}`,
+    '/ip firewall address-list',
+    `add list=spygym-mgmt address=${SPYGYM_VPN_SERVER_IP} comment="SPYGYM VPS via OpenVPN ROS6"`,
+    `add list=spygym-mgmt address=${SPYGYM_VPN_MGMT_CIDR} comment="Rede VPN SPYGYM ROS6"`,
+    '',
+    '/ip service',
+    `set winbox disabled=no port=8291 address=${SPYGYM_VPN_MGMT_CIDR}`,
+    `set www disabled=no port=80 address=${SPYGYM_VPN_MGMT_CIDR}`,
+    `set www-ssl disabled=no port=443 address=${SPYGYM_VPN_MGMT_CIDR}`,
+    `set ssh disabled=no port=22 address=${SPYGYM_VPN_MGMT_CIDR}`,
+    '',
+    '/ip firewall filter',
+    'add chain=input action=accept src-address-list=spygym-mgmt protocol=tcp dst-port=8291,80,443,22 comment="SPYGYM mgmt via VPN"',
+    'add chain=input action=accept src-address-list=spygym-mgmt protocol=icmp comment="SPYGYM ping via VPN"',
+    '',
+    '# Validacao',
+    '# /ip service print',
+    '# /ip firewall filter print where comment~"SPYGYM"',
+    `# /ping ${SPYGYM_VPN_SERVER_IP}`,
+  ].join('\n')
 }
 
 export default function MikrotikPage({ refreshToken, connected, currentUser, onLogout }) {
@@ -66,6 +94,8 @@ export default function MikrotikPage({ refreshToken, connected, currentUser, onL
   }), [mikrotiks, search, unitFilter])
 
   const selectedUnit = units.find((unit) => String(unit.id) === String(unitFilter))
+  const focusAsset = filtered[0] || null
+  const generatedScript = focusAsset ? buildMikrotikMgmtScript(focusAsset, selectedUnit) : ''
 
   const copyTarget = async (value, label) => {
     try {
@@ -149,6 +179,53 @@ export default function MikrotikPage({ refreshToken, connected, currentUser, onL
             <div className="stat-card amber"><div><strong>{filtered.filter((asset) => asset.status === 'warning').length}</strong><span>Alerta</span></div></div>
             <div className="stat-card red"><div><strong>{filtered.filter((asset) => asset.status === 'offline').length}</strong><span>Offline</span></div></div>
           </div>
+        </section>
+
+        <section className="panel infrastructure-overview">
+          <div className="panel-header">
+            <div>
+              <span className="eyebrow">RouterOS</span>
+              <h3>Liberacao de acesso pela VPN</h3>
+            </div>
+            <TerminalSquare size={18} />
+          </div>
+          {focusAsset ? (
+            <>
+              <div className="stack-list compact-list">
+                <div className="info-block">
+                  <div>
+                    <strong>Roteador em foco</strong>
+                    <span>{focusAsset.name} • {focusAsset.host}</span>
+                  </div>
+                </div>
+                <div className="info-block">
+                  <div>
+                    <strong>Origem de gestao SPYGYM</strong>
+                    <span>{SPYGYM_VPN_MGMT_CIDR} • gateway {SPYGYM_VPN_SERVER_IP}</span>
+                  </div>
+                </div>
+                <div className="info-block">
+                  <div>
+                    <strong>Observacao operacional</strong>
+                    <span>Se houver regra de drop no chain input antes destes accepts, mova as regras SPYGYM para cima.</span>
+                  </div>
+                </div>
+              </div>
+
+              <pre className="config-snippet">{generatedScript}</pre>
+
+              <div className="entity-card-actions wrap">
+                <button type="button" className="button primary" onClick={() => copyTarget(generatedScript, 'Script RouterOS')}>
+                  <Copy size={16} />
+                  Copiar script
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="empty-state">
+              Selecione uma unidade com MikroTik descoberto para gerar o bloco de liberacao de WinBox, WebFig e SSH pela VPN.
+            </div>
+          )}
         </section>
       </div>
 
