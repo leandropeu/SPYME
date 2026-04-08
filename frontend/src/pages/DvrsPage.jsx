@@ -121,6 +121,10 @@ export default function DvrsPage({ refreshToken, connected, currentUser, onLogou
     () => dvrs.filter((item) => `${item.name} ${item.host} ${item.vendor} ${item.unit_name || ''}`.toLowerCase().includes(search.toLowerCase())),
     [dvrs, search],
   )
+  const pendingCredentialDvrs = useMemo(
+    () => filtered.filter((item) => item.pending_credentials),
+    [filtered],
+  )
 
   const save = async (form) => {
     const payload = {
@@ -256,6 +260,11 @@ export default function DvrsPage({ refreshToken, connected, currentUser, onLogou
 
       {error ? <div className="alert-banner error">{error}</div> : null}
       {notice ? <div className="alert-banner success">{notice}</div> : null}
+      {pendingCredentialDvrs.length ? (
+        <div className="alert-banner warning">
+          {pendingCredentialDvrs.length} DVR(s) descobertos automaticamente ainda precisam de usuario e senha: {pendingCredentialDvrs.map((item) => `${item.name} (${item.host})`).join(', ')}.
+        </div>
+      ) : null}
 
       {view === 'cards' ? (
         <div className="card-grid">
@@ -264,7 +273,7 @@ export default function DvrsPage({ refreshToken, connected, currentUser, onLogou
               <div className="entity-card-header">
                 <div>
                   <strong>{item.name}</strong>
-                  <span>{item.unit_name} • {item.vendor}</span>
+                  <span>{item.unit_name} • {item.vendor}{item.auto_discovered ? ' • auto' : ''}</span>
                 </div>
                 <StatusBadge status={item.status} />
               </div>
@@ -273,6 +282,7 @@ export default function DvrsPage({ refreshToken, connected, currentUser, onLogou
                 <div className="metric-line"><span>Câmeras instaladas</span><strong>{item.camera_count}</strong></div>
                 <div className="metric-line"><span>Capacidade</span><strong>{item.channel_count} canais</strong></div>
                 <div className="metric-line"><span>Última checagem</span><strong>{formatDate(item.last_checked)}</strong></div>
+                <div className="metric-line"><span>Credenciais</span><strong>{item.has_password ? 'ok' : 'preencher'}</strong></div>
               </div>
               <div className="entity-card-actions wrap">
                 <button type="button" className="button primary" onClick={() => openConsole(item)}><Eye size={16} />Console</button>
@@ -322,7 +332,7 @@ export default function DvrsPage({ refreshToken, connected, currentUser, onLogou
                 <tr key={item.id} className={getStatusSurfaceClass(item.status, true)}>
                   <td>
                     <strong>{item.name}</strong>
-                    <span>{item.vendor}</span>
+                    <span>{item.vendor}{item.auto_discovered ? ' • auto' : ''}</span>
                   </td>
                   <td>{item.unit_name}</td>
                   <td>{item.host}:{item.port}</td>

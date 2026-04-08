@@ -78,6 +78,7 @@ class UnitUpdate(UnitBase, UnitSecretFields):
 class UnitOut(ORMModel, UnitBase):
     id: int
     dvr_count: int = 0
+    pending_dvr_credentials_count: int = 0
     camera_count: int = 0
     network_asset_count: int = 0
     online_dvrs: int = 0
@@ -173,6 +174,8 @@ class DVROut(ORMModel, DVRBase):
     last_latency_ms: float | None = None
     has_password: bool = False
     has_owner_password: bool = False
+    auto_discovered: bool = False
+    pending_credentials: bool = False
     unit_name: str | None = None
     camera_count: int = 0
     cloud_account: CloudAccountSummary | None = None

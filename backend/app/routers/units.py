@@ -30,13 +30,14 @@ async def _get_unit_with_relations(session: AsyncSession, unit_id: int) -> Unit 
 def _serialize(unit: Unit) -> UnitOut:
     dvrs = unit.dvrs or []
     cameras = [camera for camera in (unit.cameras or []) if camera.is_active]
+    pending_dvr_credentials_count = sum(1 for dvr in dvrs if not dvr.password_encrypted)
     return UnitOut(
         id=unit.id, name=unit.name, code=unit.code, city=unit.city, state=unit.state,
         address=unit.address, manager_name=unit.manager_name, manager_phone=unit.manager_phone,
         network_label=unit.network_label, vpn_type=unit.vpn_type, vpn_host=unit.vpn_host,
         vpn_port=unit.vpn_port, vpn_username=unit.vpn_username, vpn_network_cidr=unit.vpn_network_cidr,
         vpn_adapter_name=unit.vpn_adapter_name, notes=unit.notes, is_active=unit.is_active,
-        dvr_count=len(dvrs), camera_count=len(cameras),
+        dvr_count=len(dvrs), pending_dvr_credentials_count=pending_dvr_credentials_count, camera_count=len(cameras),
         network_asset_count=len([asset for asset in (unit.network_assets or []) if asset.is_active]),
         online_dvrs=sum(1 for d in dvrs if d.status == "online"),
         online_cameras=sum(1 for c in cameras if c.status == "online"),

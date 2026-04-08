@@ -20,6 +20,9 @@ router = APIRouter(prefix="/dvrs", tags=["dvrs"], dependencies=[Depends(get_curr
 
 def _serialize(dvr: DVR) -> DVROut:
     active_cameras = [camera for camera in (dvr.cameras or []) if camera.is_active]
+    notes_text = (dvr.notes or "").lower()
+    auto_discovered = "descoberto automaticamente" in notes_text
+    pending_credentials = auto_discovered and not bool(dvr.password_encrypted)
     cloud = None
     if dvr.cloud_account:
         cloud = CloudAccountSummary(
@@ -52,6 +55,8 @@ def _serialize(dvr: DVR) -> DVROut:
         last_latency_ms=dvr.last_latency_ms,
         has_password=bool(dvr.password_encrypted),
         has_owner_password=bool(dvr.owner_password_encrypted),
+        auto_discovered=auto_discovered,
+        pending_credentials=pending_credentials,
         unit_name=dvr.unit.name if dvr.unit else None,
         camera_count=len(active_cameras),
         cloud_account_id=dvr.cloud_account_id,

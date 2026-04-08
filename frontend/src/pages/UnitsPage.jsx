@@ -180,6 +180,10 @@ export default function UnitsPage({ refreshToken, connected, currentUser, onLogo
                     <span>VPN</span>
                     <strong>{unit.vpn_type ? `${unit.vpn_type} / ${unit.has_vpn_password ? 'ok' : 'sem senha'}` : '-'}</strong>
                   </div>
+                  <div className="unit-summary-network">
+                    <span>Credenciais DVR</span>
+                    <strong>{unit.pending_dvr_credentials_count ? `${unit.pending_dvr_credentials_count} pendente(s)` : 'todas ok'}</strong>
+                  </div>
                 </div>
                 {allowManage ? (
                   <div className="entity-card-actions compact-actions unit-summary-actions">
