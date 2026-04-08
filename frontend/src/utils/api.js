@@ -95,6 +95,14 @@ export const api = {
     return request(`/dvr-remote/${dvrId}/recordings${qs ? `?${qs}` : ''}`)
   },
   rebootDvr: (dvrId) => request(`/dvr-remote/${dvrId}/reboot`, { method: 'POST' }),
+  dvrConsoleUrl: (dvrId, path = '') => {
+    const normalized = String(path || '').replace(/^\/+/, '')
+    const suffix = normalized ? `/${normalized}` : '/'
+    const params = new URLSearchParams()
+    if (authToken) params.set('token', authToken)
+    const qs = params.toString()
+    return `${ROOT_API}/api/dvr-remote/${dvrId}/console${suffix}${qs ? `?${qs}` : ''}`
+  },
   dvrProxyUrl: (dvrId, path = '/') => {
     const params = new URLSearchParams()
     params.set('path', path)

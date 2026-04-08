@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from fastapi import Depends, HTTPException, WebSocket
+from fastapi import Cookie, Depends, HTTPException, WebSocket
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -122,10 +122,11 @@ async def resolve_user_by_token(session: AsyncSession, raw_token: str | None) ->
 
 async def get_current_user(
     token: str | None = None,
+    spygym_token: str | None = Cookie(default=None, alias="spygym_token"),
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     session: AsyncSession = Depends(get_db),
 ) -> User:
-    raw_token = token or (credentials.credentials if credentials else None)
+    raw_token = token or spygym_token or (credentials.credentials if credentials else None)
     return await resolve_user_by_token(session, raw_token)
 
 

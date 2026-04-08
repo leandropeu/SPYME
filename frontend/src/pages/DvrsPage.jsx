@@ -399,7 +399,7 @@ export default function DvrsPage({ refreshToken, connected, currentUser, onLogou
 
             <div className="entity-card-actions wrap compact-actions">
               {consoleDvr ? (
-                <a className="button primary" href={api.dvrProxyUrl(consoleDvr.id)} target="_blank" rel="noreferrer">
+                <a className="button primary" href={api.dvrConsoleUrl(consoleDvr.id)} target="_blank" rel="noreferrer">
                   <Eye size={16} />
                   Abrir interface
                 </a>

@@ -11,10 +11,11 @@ Acesso remoto a DVRs:
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
-from urllib.parse import urlparse
+from urllib.parse import quote, urljoin, urlparse
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -47,6 +48,78 @@ def _validate_dvr_target(dvr: DVR, target: str) -> str:
     ):
         raise HTTPException(status_code=400, detail="URL de destino inválida para este DVR.")
     return resolved_target
+
+
+def _build_proxy_url(dvr_id: int, path: str, token: str | None) -> str:
+    encoded_path = quote(path or "/", safe="/:?=&%")
+    url = f"/api/dvr-remote/{dvr_id}/proxy?path={encoded_path}"
+    if token:
+        url = f"{url}&token={quote(token, safe='')}"
+    return url
+
+
+def _resolve_proxy_path(current_path: str, target: str) -> str | None:
+    value = (target or "").strip()
+    if not value or value.startswith(("#", "javascript:", "data:", "mailto:", "tel:")):
+        return None
+    if value.startswith(("http://", "https://")):
+        return value
+    return urljoin(current_path if current_path.startswith("/") else f"/{current_path}", value)
+
+
+def _rewrite_proxy_html(content: str, *, dvr_id: int, token: str | None, current_path: str) -> str:
+    def replace_attr(match: re.Match[str]) -> str:
+        attr = match.group(1)
+        quote_char = match.group(2)
+        original = match.group(3)
+        resolved = _resolve_proxy_path(current_path, original)
+        if not resolved or resolved.startswith(("http://", "https://")):
+            return match.group(0)
+        return f"{attr}={quote_char}{_build_proxy_url(dvr_id, resolved, token)}{quote_char}"
+
+    def replace_location(match: re.Match[str]) -> str:
+        original = match.group(1)
+        resolved = _resolve_proxy_path(current_path, original)
+        if not resolved or resolved.startswith(("http://", "https://")):
+            return match.group(0)
+        return match.group(0).replace(original, _build_proxy_url(dvr_id, resolved, token))
+
+    rewritten = re.sub(r'(?i)\b(href|src|action)=(["\'])([^"\']+)\2', replace_attr, content)
+    rewritten = re.sub(r'(?i)window\.location(?:\.href)?\s*=\s*["\']([^"\']+)["\']', replace_location, rewritten)
+    return rewritten
+
+
+async def _proxy_dvr_request(
+    dvr: DVR,
+    *,
+    target: str,
+    timeout: httpx.Timeout | float,
+    follow_redirects: bool,
+) -> httpx.Response:
+    auth = build_httpx_auth(dvr)
+    async with httpx.AsyncClient(timeout=timeout, verify=False, follow_redirects=follow_redirects) as client:
+        return await client.get(target, auth=auth)
+
+
+def _build_streaming_response(
+    resp: httpx.Response,
+    *,
+    body: bytes | None = None,
+    token: str | None = None,
+) -> StreamingResponse:
+    headers = dict(resp.headers)
+    for h in ("x-frame-options", "content-security-policy", "x-content-type-options", "content-length", "Content-Length"):
+        headers.pop(h, None)
+
+    response = StreamingResponse(
+        iter([body if body is not None else resp.content]),
+        status_code=resp.status_code,
+        media_type=resp.headers.get("content-type", "text/html"),
+        headers=headers,
+    )
+    if token:
+        response.set_cookie("spygym_token", token, httponly=True, samesite="lax", path="/api/")
+    return response
 
 
 @router.get("/{dvr_id}/web-url")
@@ -115,6 +188,7 @@ async def dvr_reboot(
 async def dvr_web_proxy(
     dvr_id: int,
     path: str = Query(default="/"),
+    request: Request = None,
     session: AsyncSession = Depends(get_db),
     _: object = Depends(require_roles(ROLE_ADMIN, ROLE_OPERATOR)),
 ):
@@ -126,26 +200,54 @@ async def dvr_web_proxy(
     dvr = await _get_dvr(dvr_id, session)
     base = get_dvr_web_url(dvr)
     target = _validate_dvr_target(dvr, f"{base}/{path.lstrip('/')}")
-    auth = build_httpx_auth(dvr)
+    token = request.query_params.get("token") if request else None
 
     try:
-        async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
-            resp = await client.get(target, auth=auth)
+        resp = await _proxy_dvr_request(dvr, target=target, timeout=10.0, follow_redirects=True)
 
         # Remove cabeçalhos que bloqueiam iframe
         headers = dict(resp.headers)
         for h in ("x-frame-options", "content-security-policy", "x-content-type-options"):
             headers.pop(h, None)
         headers.pop("X-Frame-Options", None)
+        headers.pop("content-length", None)
+        headers.pop("Content-Length", None)
 
-        return StreamingResponse(
-            iter([resp.content]),
-            status_code=resp.status_code,
-            media_type=resp.headers.get("content-type", "text/html"),
-            headers=headers,
-        )
+        media_type = resp.headers.get("content-type", "text/html")
+        body = resp.content
+        if "text/html" in media_type.lower():
+            body = _rewrite_proxy_html(resp.text, dvr_id=dvr_id, token=token, current_path=path).encode(
+                resp.encoding or "utf-8",
+                errors="replace",
+            )
+
+        return _build_streaming_response(resp, body=body, token=token)
     except httpx.ConnectError:
         raise HTTPException(status_code=502, detail="DVR inacessível. Verifique host e porta.")
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@router.get("/{dvr_id}/console")
+@router.get("/{dvr_id}/console/")
+@router.get("/{dvr_id}/console/{proxy_path:path}")
+async def dvr_web_console(
+    dvr_id: int,
+    proxy_path: str = "",
+    request: Request = None,
+    session: AsyncSession = Depends(get_db),
+    _: object = Depends(require_roles(ROLE_ADMIN, ROLE_OPERATOR)),
+):
+    dvr = await _get_dvr(dvr_id, session)
+    token = request.query_params.get("token") if request else None
+    target_path = f"/{proxy_path.lstrip('/')}" if proxy_path else "/"
+    target = _validate_dvr_target(dvr, f"{get_dvr_web_url(dvr)}/{target_path.lstrip('/')}")
+
+    try:
+        resp = await _proxy_dvr_request(dvr, target=target, timeout=10.0, follow_redirects=True)
+        return _build_streaming_response(resp, token=token)
+    except httpx.ConnectError:
+        raise HTTPException(status_code=502, detail="DVR inacessÃ­vel. Verifique host e porta.")
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc))
 
