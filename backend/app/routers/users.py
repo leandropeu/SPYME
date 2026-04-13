@@ -75,6 +75,8 @@ async def update_user_route(
 
     if current_user.id == user.id and not user.is_active:
         raise HTTPException(status_code=400, detail="Voce nao pode desativar sua propria conta.")
+    if current_user.id == user.id and user.role != ROLE_ADMIN:
+        raise HTTPException(status_code=400, detail="Voce nao pode remover seu proprio perfil de administrador.")
 
     await session.commit()
     await session.refresh(user)

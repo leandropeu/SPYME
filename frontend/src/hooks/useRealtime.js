@@ -52,7 +52,10 @@ export function useRealtime(token, onMessage) {
           reason: event.reason || 'no_reason',
           wasClean: event.wasClean,
         })
-        reconnectTimer = window.setTimeout(connect, 3000)
+        // Authentication and server errors should wait for a new login/token instead of looping forever.
+        if (![1008, 1011].includes(event.code)) {
+          reconnectTimer = window.setTimeout(connect, 3000)
+        }
       }
 
       socket.onerror = (event) => {

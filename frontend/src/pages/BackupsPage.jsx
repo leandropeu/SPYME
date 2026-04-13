@@ -11,14 +11,28 @@ export default function BackupsPage({ refreshToken, connected, currentUser, onLo
   const [backups, setBackups] = useState([])
   const [health, setHealth] = useState(null)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const allowManage = canManage(currentUser)
 
   const load = async () => {
     try {
       setError('')
+      setNotice('')
       const [backupData, healthData] = await Promise.all([api.listBackups(), api.health()])
       setBackups(backupData)
       setHealth(healthData)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  const runBackupNow = async () => {
+    try {
+      setError('')
+      setNotice('')
+      await api.runBackup()
+      setNotice('Backup executado com sucesso.')
+      await load()
     } catch (err) {
       setError(err.message)
     }
@@ -40,6 +54,7 @@ export default function BackupsPage({ refreshToken, connected, currentUser, onLo
       />
 
       {error ? <div className="alert-banner error">{error}</div> : null}
+      {notice ? <div className="alert-banner success">{notice}</div> : null}
 
       <div className="panel-grid two-columns">
         <section className="panel">
@@ -49,7 +64,7 @@ export default function BackupsPage({ refreshToken, connected, currentUser, onLo
               <h3>Proteção do banco</h3>
             </div>
             {allowManage ? (
-              <button type="button" className="button primary" onClick={() => api.runBackup().then(load)}>
+              <button type="button" className="button primary" onClick={runBackupNow}>
                 <DatabaseBackup size={16} />
                 Fazer backup agora
               </button>

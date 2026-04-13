@@ -22,13 +22,19 @@ Esperado:
 - porta `80` ocupada por `docker-proxy`
 - porta `8000` sem `uvicorn` legado externo
 
-## 3. Usar apenas o deploy Docker
+## 3. Atualizar para o stack Docker definitivo
 
 ```bash
 cd /root/Documents/CUNHADO/spygym/deploy/deploy
-docker compose -f docker-compose.vps.yml up -d --build --force-recreate backend frontend nginx
+docker compose -f docker-compose.vps.yml up -d --build --force-recreate backend nginx
 docker compose -f docker-compose.vps.yml ps
 ```
+
+Observacao:
+
+- o `backend` agora sobe a partir de uma imagem propria do projeto
+- o `nginx` tambem passa a buildar o frontend estatico no proprio build
+- nao existe mais o servico `frontend` separado no deploy da VPS
 
 ## 4. Validar API e CORS
 

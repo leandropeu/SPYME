@@ -16,6 +16,7 @@ export default function UsersPage({ refreshToken, connected, currentUser, onLogo
   const [editing, setEditing] = useState(null)
   const [open, setOpen] = useState(false)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
 
   const fields = [
     { name: 'full_name', label: 'Nome completo' },
@@ -35,6 +36,7 @@ export default function UsersPage({ refreshToken, connected, currentUser, onLogo
   const load = async () => {
     try {
       setError('')
+      setNotice('')
       setUsers(await api.listUsers())
     } catch (err) {
       setError(err.message)
@@ -51,22 +53,44 @@ export default function UsersPage({ refreshToken, connected, currentUser, onLogo
   )
 
   const save = async (form) => {
-    const payload = {
-      ...form,
-      is_active: String(form.is_active) !== 'false',
-    }
-    if (!payload.password) {
-      delete payload.password
-    }
+    try {
+      setError('')
+      setNotice('')
+      const payload = {
+        ...form,
+        is_active: String(form.is_active) !== 'false',
+      }
+      if (!payload.password) {
+        delete payload.password
+      }
 
-    if (editing?.id) {
-      await api.updateUser(editing.id, payload)
-    } else {
-      await api.createUser(payload)
+      if (editing?.id) {
+        await api.updateUser(editing.id, payload)
+        setNotice('Usuario atualizado com sucesso.')
+      } else {
+        await api.createUser(payload)
+        setNotice('Usuario criado com sucesso.')
+      }
+      setOpen(false)
+      setEditing(null)
+      load()
+    } catch (err) {
+      setError(err.message)
+      throw err
     }
-    setOpen(false)
-    setEditing(null)
-    load()
+  }
+
+  const removeUser = async (user) => {
+    if (!window.confirm(`Excluir ${user.full_name}?`)) return
+    try {
+      setError('')
+      setNotice('')
+      await api.deleteUser(user.id)
+      setNotice('Usuario removido com sucesso.')
+      await load()
+    } catch (err) {
+      setError(err.message)
+    }
   }
 
   return (
@@ -90,6 +114,7 @@ export default function UsersPage({ refreshToken, connected, currentUser, onLogo
       </div>
 
       {error ? <div className="alert-banner error">{error}</div> : null}
+      {notice ? <div className="alert-banner success">{notice}</div> : null}
 
       {view === 'cards' ? (
         <div className="card-grid">
@@ -111,7 +136,7 @@ export default function UsersPage({ refreshToken, connected, currentUser, onLogo
                   <Pencil size={16} />
                   Editar
                 </button>
-                <button type="button" className="button danger" onClick={() => window.confirm(`Excluir ${user.full_name}?`) && api.deleteUser(user.id).then(load)}>
+                <button type="button" className="button danger" onClick={() => removeUser(user)}>
                   <Trash2 size={16} />
                   Excluir
                 </button>
@@ -143,7 +168,7 @@ export default function UsersPage({ refreshToken, connected, currentUser, onLogo
                   <td>{formatDate(user.last_login_at)}</td>
                   <td className="actions-cell">
                     <button type="button" className="button ghost" onClick={() => { setEditing({ ...user, is_active: String(user.is_active) }); setOpen(true) }}>Editar</button>
-                    <button type="button" className="button danger" onClick={() => window.confirm(`Excluir ${user.full_name}?`) && api.deleteUser(user.id).then(load)}>Excluir</button>
+                    <button type="button" className="button danger" onClick={() => removeUser(user)}>Excluir</button>
                   </td>
                 </tr>
               ))}

@@ -4,14 +4,14 @@ import { ArrowRight, KeyRound, LockKeyhole, MonitorDot, ShieldCheck, Sparkles } 
 export default function LoginPage({ onLogin, loading, booting = false }) {
   const [form, setForm] = useState({
     email: 'admin@spygym.local',
-    password: 'Admin@123',
+    password: '',
   })
   const [error, setError] = useState('')
 
   const fillDefaultAccess = () => {
     setForm({
       email: 'admin@spygym.local',
-      password: 'Admin@123',
+      password: '',
     })
     setError('')
   }
@@ -37,22 +37,22 @@ export default function LoginPage({ onLogin, loading, booting = false }) {
           <div className="brand-chip">SPYGYM Secure Access</div>
 
           <div className="login-copy">
-            <h1>Monitoramento centralizado com acesso rápido e seguro</h1>
-            <p>Entre no painel para acompanhar DVRs, câmeras, eventos críticos e backups em uma única operação.</p>
+            <h1>Monitoramento centralizado com acesso rapido e seguro</h1>
+            <p>Entre no painel para acompanhar DVRs, cameras, eventos criticos e backups em uma unica operacao.</p>
           </div>
 
           <div className="login-side-list">
             <div className="login-side-item">
               <ShieldCheck size={18} />
-              <span>Autenticação com sessão protegida</span>
+              <span>Autenticacao com sessao protegida</span>
             </div>
             <div className="login-side-item">
               <MonitorDot size={18} />
-              <span>Painel em tempo real para unidades, DVRs e câmeras</span>
+              <span>Painel em tempo real para unidades, DVRs e cameras</span>
             </div>
             <div className="login-side-item">
               <Sparkles size={18} />
-              <span>Inicialização com um clique pelo atalho do projeto</span>
+              <span>Inicializacao com um clique pelo atalho do projeto</span>
             </div>
           </div>
 
@@ -60,15 +60,15 @@ export default function LoginPage({ onLogin, loading, booting = false }) {
             <div className="info-block">
               <MonitorDot size={18} />
               <div>
-                <strong>Admin inicial</strong>
+                <strong>Admin padrao</strong>
                 <span>admin@spygym.local</span>
               </div>
             </div>
             <div className="info-block">
               <LockKeyhole size={18} />
               <div>
-                <strong>Senha inicial</strong>
-                <span>Admin@123</span>
+                <strong>Senha</strong>
+                <span>Use a senha ativa definida no ambiente publicado.</span>
               </div>
             </div>
           </div>
@@ -78,7 +78,7 @@ export default function LoginPage({ onLogin, loading, booting = false }) {
           <div className="login-panel-head">
             <span className="eyebrow">Acesso Seguro</span>
             <strong>{booting ? 'Preparando ambiente' : 'Entrar no painel'}</strong>
-            <p>{booting ? 'Validando a sessão atual e conectando ao backend.' : 'Use suas credenciais para abrir o centro de operações do SPYGYM.'}</p>
+            <p>{booting ? 'Validando a sessao atual e conectando ao backend.' : 'Use suas credenciais para abrir o centro de operacoes do SPYGYM.'}</p>
           </div>
 
           <form className="login-form" onSubmit={submit}>
@@ -108,7 +108,7 @@ export default function LoginPage({ onLogin, loading, booting = false }) {
             <div className="login-actions">
               <button type="button" className="button ghost login-ghost" onClick={fillDefaultAccess} disabled={loading || booting}>
                 <KeyRound size={16} />
-                Usar acesso padrão
+                Usar e-mail padrao
               </button>
               <button type="submit" className="button primary wide login-submit" disabled={loading || booting}>
                 {booting ? 'Conectando...' : loading ? 'Entrando...' : 'Entrar no SPYGYM'}
@@ -118,7 +118,7 @@ export default function LoginPage({ onLogin, loading, booting = false }) {
 
             <div className="login-note">
               <LockKeyhole size={16} />
-              <span>Login inicial disponível com o usuário administrador padrão.</span>
+              <span>O e-mail padrao permanece o mesmo, mas a senha pode ter sido alterada na VPS.</span>
             </div>
           </form>
         </section>

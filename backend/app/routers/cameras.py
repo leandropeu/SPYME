@@ -79,10 +79,22 @@ async def create_camera(
     unit = await session.get(Unit, payload.unit_id)
     if not unit:
         raise HTTPException(status_code=404, detail="Unidade nao encontrada.")
+    dvr = None
     if payload.dvr_id:
         dvr = await session.get(DVR, payload.dvr_id)
         if not dvr:
             raise HTTPException(status_code=404, detail="DVR nao encontrado.")
+        if dvr.unit_id != payload.unit_id:
+            raise HTTPException(status_code=400, detail="O DVR selecionado nao pertence a esta unidade.")
+        duplicate = await session.scalar(
+            select(Camera).where(
+                Camera.dvr_id == payload.dvr_id,
+                Camera.channel_number == payload.channel_number,
+                Camera.is_active.is_(True),
+            )
+        )
+        if duplicate:
+            raise HTTPException(status_code=409, detail="Ja existe uma camera ativa neste canal para o DVR selecionado.")
 
     camera = Camera(**payload.model_dump())
     session.add(camera)
@@ -101,6 +113,25 @@ async def update_camera(
     camera = await session.get(Camera, camera_id, options=[selectinload(Camera.unit), selectinload(Camera.dvr)])
     if not camera:
         raise HTTPException(status_code=404, detail="Camera nao encontrada.")
+    unit = await session.get(Unit, payload.unit_id)
+    if not unit:
+        raise HTTPException(status_code=404, detail="Unidade nao encontrada.")
+    if payload.dvr_id:
+        dvr = await session.get(DVR, payload.dvr_id)
+        if not dvr:
+            raise HTTPException(status_code=404, detail="DVR nao encontrado.")
+        if dvr.unit_id != payload.unit_id:
+            raise HTTPException(status_code=400, detail="O DVR selecionado nao pertence a esta unidade.")
+        duplicate = await session.scalar(
+            select(Camera).where(
+                Camera.dvr_id == payload.dvr_id,
+                Camera.channel_number == payload.channel_number,
+                Camera.id != camera_id,
+                Camera.is_active.is_(True),
+            )
+        )
+        if duplicate:
+            raise HTTPException(status_code=409, detail="Ja existe uma camera ativa neste canal para o DVR selecionado.")
 
     for field, value in payload.model_dump().items():
         setattr(camera, field, value)

@@ -93,6 +93,9 @@ async def create_dvr(
     unit = await session.get(Unit, payload.unit_id)
     if not unit:
         raise HTTPException(status_code=404, detail="Unidade nao encontrada.")
+    existing = await session.scalar(select(DVR).where(DVR.unit_id == payload.unit_id, DVR.name == payload.name.strip()))
+    if existing:
+        raise HTTPException(status_code=409, detail="Ja existe um DVR com este nome nesta unidade.")
     owner_username = (payload.owner_username or "").strip() or None
 
     dvr = DVR(
@@ -124,6 +127,14 @@ async def update_dvr(
     )
     if not dvr:
         raise HTTPException(status_code=404, detail="DVR nao encontrado.")
+    unit = await session.get(Unit, payload.unit_id)
+    if not unit:
+        raise HTTPException(status_code=404, detail="Unidade nao encontrada.")
+    existing = await session.scalar(
+        select(DVR).where(DVR.unit_id == payload.unit_id, DVR.name == payload.name.strip(), DVR.id != dvr_id)
+    )
+    if existing:
+        raise HTTPException(status_code=409, detail="Ja existe um DVR com este nome nesta unidade.")
     owner_username = (payload.owner_username or "").strip()
     owner_password = (payload.owner_password or "").strip()
     if owner_password and not owner_username:

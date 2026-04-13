@@ -71,39 +71,50 @@ export default function UnitsPage({ refreshToken, connected, currentUser, onLogo
   )
 
   const save = async (form) => {
-    const payload = {
-      ...form,
-      vpn_port: form.vpn_port ? Number(form.vpn_port) : null,
-    }
-    setScanSummary('')
-    let savedUnit
-    if (editing?.id) {
-      savedUnit = await api.updateUnit(editing.id, payload)
-    } else {
-      savedUnit = await api.createUnit(payload)
-    }
-    if (savedUnit?.vpn_network_cidr) {
-      setBusyUnitId(savedUnit.id)
-      try {
-        const result = await api.discoverUnitDvrs(savedUnit.id)
-        setScanSummary(
-          `${savedUnit.name}: ${result.discovered_count} DVRs detectados, ${result.created_count} cadastrados e ${result.updated_count} atualizados. Preencha apenas usuario e senha dos gravadores encontrados.`,
-        )
-      } catch (err) {
-        setError(`Unidade salva, mas a descoberta automatica nao concluiu: ${err.message}`)
-      } finally {
-        setBusyUnitId(null)
+    try {
+      const payload = {
+        ...form,
+        vpn_port: form.vpn_port ? Number(form.vpn_port) : null,
       }
+      setError('')
+      setScanSummary('')
+      let savedUnit
+      if (editing?.id) {
+        savedUnit = await api.updateUnit(editing.id, payload)
+      } else {
+        savedUnit = await api.createUnit(payload)
+      }
+      if (savedUnit?.vpn_network_cidr) {
+        setBusyUnitId(savedUnit.id)
+        try {
+          const result = await api.discoverUnitDvrs(savedUnit.id)
+          setScanSummary(
+            `${savedUnit.name}: ${result.discovered_count} DVRs detectados, ${result.created_count} cadastrados e ${result.updated_count} atualizados. Preencha apenas usuario e senha dos gravadores encontrados.`,
+          )
+        } catch (err) {
+          setError(`Unidade salva, mas a descoberta automatica nao concluiu: ${err.message}`)
+        } finally {
+          setBusyUnitId(null)
+        }
+      }
+      setOpen(false)
+      setEditing(null)
+      await load()
+    } catch (err) {
+      setError(err.message)
+      throw err
     }
-    setOpen(false)
-    setEditing(null)
-    load()
   }
 
   const remove = async (unit) => {
     if (!window.confirm(`Excluir ${unit.name}?`)) return
-    await api.deleteUnit(unit.id)
-    load()
+    try {
+      setError('')
+      await api.deleteUnit(unit.id)
+      await load()
+    } catch (err) {
+      setError(err.message)
+    }
   }
 
   const scanUnitDvrs = async (unit) => {

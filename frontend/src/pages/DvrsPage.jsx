@@ -127,23 +127,45 @@ export default function DvrsPage({ refreshToken, connected, currentUser, onLogou
   )
 
   const save = async (form) => {
-    const payload = {
-      ...form,
-      unit_id: Number(form.unit_id),
-      port: Number(form.port || 80),
-      channel_count: Number(form.channel_count || 8),
-      cloud_account_id: form.cloud_account_id ? Number(form.cloud_account_id) : null,
-      is_active: form.is_active !== 'false',
-    }
+    try {
+      setError('')
+      setNotice('')
+      const payload = {
+        ...form,
+        unit_id: Number(form.unit_id),
+        port: Number(form.port || 80),
+        channel_count: Number(form.channel_count || 8),
+        cloud_account_id: form.cloud_account_id ? Number(form.cloud_account_id) : null,
+        is_active: form.is_active !== 'false',
+      }
 
-    if (editing?.id) {
-      await api.updateDvr(editing.id, payload)
-    } else {
-      await api.createDvr(payload)
+      if (editing?.id) {
+        await api.updateDvr(editing.id, payload)
+        setNotice('DVR atualizado com sucesso.')
+      } else {
+        await api.createDvr(payload)
+        setNotice('DVR criado com sucesso.')
+      }
+      setOpen(false)
+      setEditing(null)
+      await load()
+    } catch (err) {
+      setError(err.message)
+      throw err
     }
-    setOpen(false)
-    setEditing(null)
-    load()
+  }
+
+  const removeDvr = async (dvr) => {
+    if (!window.confirm(`Excluir ${dvr.name}?`)) return
+    try {
+      setError('')
+      setNotice('')
+      await api.deleteDvr(dvr.id)
+      setNotice('DVR removido com sucesso.')
+      await load()
+    } catch (err) {
+      setError(err.message)
+    }
   }
 
   const loadRecordings = async (dvr, nextFilters) => {
@@ -307,7 +329,7 @@ export default function DvrsPage({ refreshToken, connected, currentUser, onLogou
                       {busyAction === `sync-${item.id}` ? 'Sincronizando...' : 'Sincronizar'}
                     </button>
                     <button type="button" className="button ghost" onClick={() => { setEditing({ ...item, is_active: toBooleanString(item.is_active) }); setOpen(true) }}><Pencil size={16} />Editar</button>
-                    <button type="button" className="button danger" onClick={() => window.confirm(`Excluir ${item.name}?`) && api.deleteDvr(item.id).then(load)}><Trash2 size={16} />Excluir</button>
+                    <button type="button" className="button danger" onClick={() => removeDvr(item)}><Trash2 size={16} />Excluir</button>
                   </>
                 ) : null}
               </div>
@@ -351,7 +373,7 @@ export default function DvrsPage({ refreshToken, connected, currentUser, onLogou
                           <RefreshCw size={16} />
                         </button>
                         <button type="button" className="button ghost" onClick={() => { setEditing({ ...item, is_active: toBooleanString(item.is_active) }); setOpen(true) }}>Editar</button>
-                        <button type="button" className="button danger" onClick={() => window.confirm(`Excluir ${item.name}?`) && api.deleteDvr(item.id).then(load)}>Excluir</button>
+                        <button type="button" className="button danger" onClick={() => removeDvr(item)}>Excluir</button>
                       </>
                     ) : null}
                   </td>

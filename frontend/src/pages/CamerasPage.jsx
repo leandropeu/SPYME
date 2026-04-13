@@ -164,26 +164,42 @@ export default function CamerasPage({ refreshToken, connected, currentUser, onLo
   )
 
   const save = async (form) => {
-    const payload = {
-      ...form,
-      unit_id: Number(form.unit_id),
-      dvr_id: form.dvr_id ? Number(form.dvr_id) : null,
-      channel_number: Number(form.channel_number || 1),
+    try {
+      setError('')
+      setNotice('')
+      const payload = {
+        ...form,
+        unit_id: Number(form.unit_id),
+        dvr_id: form.dvr_id ? Number(form.dvr_id) : null,
+        channel_number: Number(form.channel_number || 1),
+      }
+      if (editing?.id) {
+        await api.updateCamera(editing.id, payload)
+        setNotice('Camera atualizada com sucesso.')
+      } else {
+        await api.createCamera(payload)
+        setNotice('Camera criada com sucesso.')
+      }
+      setOpen(false)
+      setEditing(null)
+      await load()
+    } catch (err) {
+      setError(err.message)
+      throw err
     }
-    if (editing?.id) {
-      await api.updateCamera(editing.id, payload)
-    } else {
-      await api.createCamera(payload)
-    }
-    setOpen(false)
-    setEditing(null)
-    load()
   }
 
   const remove = async (camera) => {
     if (!window.confirm(`Excluir ${camera.name}?`)) return
-    await api.deleteCamera(camera.id)
-    await load()
+    try {
+      setError('')
+      setNotice('')
+      await api.deleteCamera(camera.id)
+      setNotice('Camera removida com sucesso.')
+      await load()
+    } catch (err) {
+      setError(err.message)
+    }
   }
 
   const stopStreamForCamera = async (camera) => {
