@@ -3,9 +3,11 @@ const STRIPPED_API = RAW_API.replace(/\/+$/, '')
 const API_BASE = STRIPPED_API
   ? (STRIPPED_API.match(/\/api$/i) ? STRIPPED_API : `${STRIPPED_API}/api`)
   : '/api'
+const BROWSER_ORIGIN = typeof window !== 'undefined' ? window.location.origin : ''
+const ABSOLUTE_API_BASE = API_BASE.startsWith('http') ? API_BASE : `${BROWSER_ORIGIN}${API_BASE}`
 
 export { API_BASE }
-export const ROOT_API = API_BASE.replace(/\/api$/i, '')
+export const ROOT_API = ABSOLUTE_API_BASE.replace(/\/api$/i, '')
 let authToken = null
 
 export function setAuthToken(token) {

@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   backend:
     image: python:3.13-slim
@@ -8,17 +6,13 @@ services:
     volumes:
       - ../backend:/app/backend
       - spygym_data:/app/backend/data
+    env_file:
+      - ../backend/.env
     environment:
       SPYGYM_ENV: production
       SPYGYM_HOST: 0.0.0.0
       SPYGYM_PORT: 8000
-      SPYGYM_SECRET_SEED: altere-esta-chave-agora
-      SPYGYM_ALLOWED_ORIGINS: http://191.252.212.6
-      SPYGYM_ALLOWED_HOSTS: 191.252.212.6,localhost,127.0.0.1
       SPYGYM_AUTO_SEED_DEMO: "false"
-      SPYGYM_ADMIN_NAME: Administrador SPYGYM
-      SPYGYM_ADMIN_EMAIL: admin@spygym.local
-      SPYGYM_ADMIN_PASSWORD: altere-esta-senha-agora
     command: >
       sh -c "
       pip install --no-cache-dir -r requirements.txt &&
